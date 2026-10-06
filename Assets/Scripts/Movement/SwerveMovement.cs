@@ -24,7 +24,7 @@ namespace GateRunner.Movement
         private SwerveInputHandler _inputHandler;
         private float _targetX;
         private float _currentForwardSpeed;
-        private bool _canMove = true;
+        private bool _canMove = false;
 
         #region Public Properties
         public bool CanMove => _canMove;
@@ -47,6 +47,35 @@ namespace GateRunner.Movement
             }
 
             _targetX = transform.position.x;
+        }
+
+        private void Start()
+        {
+            if (Managers.GameManager.Instance != null)
+            {
+                _canMove = Managers.GameManager.Instance.State == Managers.GameState.Running;
+                Managers.GameManager.Instance.OnGameStateChanged += HandleGameStateChanged;
+            }
+        }
+
+        private void OnDestroy()
+        {
+            if (Managers.GameManager.Instance != null)
+            {
+                Managers.GameManager.Instance.OnGameStateChanged -= HandleGameStateChanged;
+            }
+        }
+
+        private void HandleGameStateChanged(Managers.GameState state)
+        {
+            if (state == Managers.GameState.Running)
+            {
+                SetMovementState(true);
+            }
+            else
+            {
+                SetMovementState(false);
+            }
         }
 
         private void OnEnable()

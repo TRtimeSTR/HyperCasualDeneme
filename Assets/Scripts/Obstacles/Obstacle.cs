@@ -1,4 +1,5 @@
 using DG.Tweening;
+using GateRunner.Audio;
 using GateRunner.Player;
 using Sirenix.OdinInspector;
 using UnityEngine;
@@ -53,7 +54,8 @@ namespace GateRunner.Obstacles
                 // Karakteri küçült / hasar ver
                 playerModifier.TakeDamage(_damage);
 
-                // Görsel sarsılma ve geri bildirim
+                // Ses ve görsel geri bildirim
+                AudioManager.Instance?.PlayDamageSound();
                 PlayHitFeedback();
             }
         }

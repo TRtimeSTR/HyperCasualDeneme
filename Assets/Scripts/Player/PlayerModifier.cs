@@ -1,5 +1,6 @@
 using System;
 using DG.Tweening;
+using GateRunner.Audio;
 using GateRunner.Data;
 using GateRunner.Movement;
 using Sirenix.OdinInspector;
@@ -122,6 +123,10 @@ namespace GateRunner.Player
             OnScoreChanged?.Invoke(_currentScore);
             OnScaleChanged?.Invoke(_targetScale);
 
+            // Ses geri bildirimi
+            bool isBuff = operationType == GateOperationType.Add || operationType == GateOperationType.Multiply;
+            AudioManager.Instance?.PlayGateSound(isBuff);
+
             // DOTween ile Pop-Up / Punch / Shake Animasyonu
             ApplyDOTweenScaleFeedback(operationType);
         }
@@ -167,6 +172,8 @@ namespace GateRunner.Player
             if (!_isAlive) return;
             _isAlive = false;
 
+            AudioManager.Instance?.PlayGameOverSound();
+
             var movement = GetComponent<SwerveMovement>();
             if (movement != null)
             {
@@ -187,6 +194,8 @@ namespace GateRunner.Player
         /// </summary>
         public void CelebrateVictory()
         {
+            AudioManager.Instance?.PlayVictorySound();
+
             var movement = GetComponent<SwerveMovement>();
             if (movement != null)
             {

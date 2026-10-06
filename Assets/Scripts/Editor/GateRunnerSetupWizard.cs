@@ -467,7 +467,11 @@ namespace GateRunner.Editor
             genSo.FindProperty("_totalLevelSegments").intValue = 16;
             genSo.ApplyModifiedPropertiesWithoutUndo();
 
-            // 6. UI Canvas & GameManager
+            // 6. AudioManager
+            GameObject audioGo = new GameObject("AudioManager");
+            audioGo.AddComponent<GateRunner.Audio.AudioManager>();
+
+            // 7. UI Canvas & GameManager
             SetupUICanvas();
 
             EditorSceneManager.SaveScene(scene, scenePath);
@@ -489,6 +493,29 @@ namespace GateRunner.Editor
             GameObject eventSystemGo = new GameObject("EventSystem");
             eventSystemGo.AddComponent<UnityEngine.EventSystems.EventSystem>();
             eventSystemGo.AddComponent<InputSystemUIInputModule>();
+
+            // Tap To Start (Ready Panel)
+            GameObject readyPanelGo = new GameObject("Panel_Ready");
+            readyPanelGo.transform.SetParent(canvasGo.transform, false);
+            var readyRect = readyPanelGo.AddComponent<RectTransform>();
+            readyRect.anchorMin = Vector2.zero;
+            readyRect.anchorMax = Vector2.one;
+            readyRect.sizeDelta = Vector2.zero;
+
+            GameObject readyTextGo = new GameObject("Text_TapToStart");
+            readyTextGo.transform.SetParent(readyPanelGo.transform, false);
+            var readyTextRect = readyTextGo.AddComponent<RectTransform>();
+            readyTextRect.anchorMin = new Vector2(0.5f, 0.35f);
+            readyTextRect.anchorMax = new Vector2(0.5f, 0.35f);
+            readyTextRect.pivot = new Vector2(0.5f, 0.5f);
+            readyTextRect.sizeDelta = new Vector2(800f, 150f);
+
+            var tmpReady = readyTextGo.AddComponent<TextMeshProUGUI>();
+            tmpReady.text = "TAP TO START";
+            tmpReady.fontSize = 58;
+            tmpReady.fontStyle = FontStyles.Bold;
+            tmpReady.alignment = TextAlignmentOptions.Center;
+            tmpReady.color = new Color(1f, 0.95f, 0.3f);
 
             // Level Text (TMP)
             GameObject levelTextGo = new GameObject("Text_Level");
@@ -565,6 +592,8 @@ namespace GateRunner.Editor
             GameObject gmGo = new GameObject("GameManager");
             var gameManager = gmGo.AddComponent<GameManager>();
             var gmSo = new SerializedObject(gameManager);
+            gmSo.FindProperty("_readyPanel").objectReferenceValue = readyPanelGo;
+            gmSo.FindProperty("_tapToStartText").objectReferenceValue = tmpReady;
             gmSo.FindProperty("_victoryPanel").objectReferenceValue = victoryPanel;
             gmSo.FindProperty("_gameOverPanel").objectReferenceValue = gameOverPanel;
             gmSo.FindProperty("_levelText").objectReferenceValue = tmpLevel;

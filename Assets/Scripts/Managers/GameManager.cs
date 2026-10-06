@@ -44,6 +44,14 @@ namespace GateRunner.Managers
         public int CurrentLevel => _currentLevel;
 
         [TabGroup("GameTabs", "UI Panelleri", SdfIconType.Display)]
+        [Tooltip("Oyun başlamadan önce ekranda görünen 'Tap to Start' paneli.")]
+        [SerializeField] private GameObject _readyPanel;
+
+        [TabGroup("GameTabs", "UI Panelleri")]
+        [Tooltip("Hafifçe yanıp sönen 'Tap to Start' metni.")]
+        [SerializeField] private TMP_Text _tapToStartText;
+
+        [TabGroup("GameTabs", "UI Panelleri")]
         [Tooltip("Bölüm başarıyla bittiğinde açılacak zafer paneli.")]
         [SerializeField] private GameObject _victoryPanel;
 
@@ -85,9 +93,184 @@ namespace GateRunner.Managers
 
         private void Start()
         {
+            EnsureUIReferences();
             SetupUIButtons();
             UpdateLevelDisplay();
-            StartGame();
+            SetupReadyState();
+        }
+
+        private void EnsureUIReferences()
+        {
+            if (_readyPanel == null) _readyPanel = GameObject.Find("Panel_Ready");
+            if (_tapToStartText == null && _readyPanel != null) _tapToStartText = _readyPanel.GetComponentInChildren<TMP_Text>();
+            if (_levelText == null)
+            {
+                var lvl = GameObject.Find("Text_Level");
+                if (lvl != null) _levelText = lvl.GetComponent<TMP_Text>();
+            }
+            if (_victoryPanel == null) _victoryPanel = GameObject.Find("Panel_Victory");
+            if (_gameOverPanel == null) _gameOverPanel = GameObject.Find("Panel_GameOver");
+            if (_nextLevelButton == null && _victoryPanel != null) _nextLevelButton = _victoryPanel.GetComponentInChildren<Button>();
+            if (_retryButton == null && _gameOverPanel != null) _retryButton = _gameOverPanel.GetComponentInChildren<Button>();
+
+            // Eğer sahnede UI Canvas veya paneller eksikse otomatik olarak runtime canvas oluştur
+            if (_readyPanel == null && FindAnyObjectByType<Canvas>() == null)
+            {
+                CreateFallbackUICanvas();
+            }
+        }
+
+        private void CreateFallbackUICanvas()
+        {
+            var canvasGo = new GameObject("UI_Canvas");
+            var canvas = canvasGo.AddComponent<Canvas>();
+            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+            var scaler = canvasGo.AddComponent<CanvasScaler>();
+            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+            scaler.referenceResolution = new Vector2(1080, 1920);
+            scaler.matchWidthOrHeight = 0.5f;
+            canvasGo.AddComponent<GraphicRaycaster>();
+
+            if (FindAnyObjectByType<UnityEngine.EventSystems.EventSystem>() == null)
+            {
+                var es = new GameObject("EventSystem");
+                es.AddComponent<UnityEngine.EventSystems.EventSystem>();
+                es.AddComponent<UnityEngine.InputSystem.UI.InputSystemUIInputModule>();
+            }
+
+            // Ready Panel (Tap to Start)
+            _readyPanel = new GameObject("Panel_Ready");
+            _readyPanel.transform.SetParent(canvasGo.transform, false);
+            var readyRect = _readyPanel.AddComponent<RectTransform>();
+            readyRect.anchorMin = Vector2.zero;
+            readyRect.anchorMax = Vector2.one;
+            readyRect.sizeDelta = Vector2.zero;
+
+            var readyTxtGo = new GameObject("Text_TapToStart");
+            readyTxtGo.transform.SetParent(_readyPanel.transform, false);
+            var rTxtRect = readyTxtGo.AddComponent<RectTransform>();
+            rTxtRect.anchorMin = new Vector2(0.5f, 0.35f);
+            rTxtRect.anchorMax = new Vector2(0.5f, 0.35f);
+            rTxtRect.pivot = new Vector2(0.5f, 0.5f);
+            rTxtRect.sizeDelta = new Vector2(800f, 150f);
+            var tmpR = readyTxtGo.AddComponent<TextMeshProUGUI>();
+            tmpR.text = "TAP TO START";
+            tmpR.fontSize = 58;
+            tmpR.fontStyle = FontStyles.Bold;
+            tmpR.alignment = TextAlignmentOptions.Center;
+            tmpR.color = new Color(1f, 0.95f, 0.3f);
+            _tapToStartText = tmpR;
+
+            // Level Text
+            var lvlGo = new GameObject("Text_Level");
+            lvlGo.transform.SetParent(canvasGo.transform, false);
+            var lvlRect = lvlGo.AddComponent<RectTransform>();
+            lvlRect.anchorMin = new Vector2(0.5f, 1f);
+            lvlRect.anchorMax = new Vector2(0.5f, 1f);
+            lvlRect.pivot = new Vector2(0.5f, 1f);
+            lvlRect.anchoredPosition = new Vector2(0f, -50f);
+            lvlRect.sizeDelta = new Vector2(400f, 70f);
+            var tmpL = lvlGo.AddComponent<TextMeshProUGUI>();
+            tmpL.text = $"LEVEL {_currentLevel}";
+            tmpL.fontSize = 44;
+            tmpL.fontStyle = FontStyles.Bold;
+            tmpL.alignment = TextAlignmentOptions.Center;
+            tmpL.color = Color.white;
+            _levelText = tmpL;
+
+            // Victory Panel
+            _victoryPanel = CreateSimpleResultPanel(canvasGo.transform, "Panel_Victory", "BÖLÜM TAMAMLANDI!", "SONRAKİ BÖLÜM", new Color(0.1f, 0.75f, 0.3f, 0.95f), out _nextLevelButton);
+
+            // Game Over Panel
+            _gameOverPanel = CreateSimpleResultPanel(canvasGo.transform, "Panel_GameOver", "BÖLÜM BAŞARISIZ!", "TEKRAR DENE", new Color(0.85f, 0.2f, 0.2f, 0.95f), out _retryButton);
+        }
+
+        private GameObject CreateSimpleResultPanel(Transform parent, string name, string title, string btnLabel, Color bgColor, out Button outButton)
+        {
+            var pGo = new GameObject(name);
+            pGo.transform.SetParent(parent, false);
+            var pRect = pGo.AddComponent<RectTransform>();
+            pRect.anchorMin = new Vector2(0.5f, 0.5f);
+            pRect.anchorMax = new Vector2(0.5f, 0.5f);
+            pRect.pivot = new Vector2(0.5f, 0.5f);
+            pRect.sizeDelta = new Vector2(700f, 480f);
+            var img = pGo.AddComponent<Image>();
+            img.color = bgColor;
+
+            var tGo = new GameObject("Text_Title");
+            tGo.transform.SetParent(pGo.transform, false);
+            var tRect = tGo.AddComponent<RectTransform>();
+            tRect.anchorMin = new Vector2(0.5f, 1f);
+            tRect.anchorMax = new Vector2(0.5f, 1f);
+            tRect.pivot = new Vector2(0.5f, 1f);
+            tRect.anchoredPosition = new Vector2(0f, -60f);
+            tRect.sizeDelta = new Vector2(650f, 120f);
+            var tmp = tGo.AddComponent<TextMeshProUGUI>();
+            tmp.text = title;
+            tmp.fontSize = 48;
+            tmp.fontStyle = FontStyles.Bold;
+            tmp.alignment = TextAlignmentOptions.Center;
+            tmp.color = Color.white;
+
+            var bGo = new GameObject("Button_Action");
+            bGo.transform.SetParent(pGo.transform, false);
+            var bRect = bGo.AddComponent<RectTransform>();
+            bRect.anchorMin = new Vector2(0.5f, 0f);
+            bRect.anchorMax = new Vector2(0.5f, 0f);
+            bRect.pivot = new Vector2(0.5f, 0f);
+            bRect.anchoredPosition = new Vector2(0f, 50f);
+            bRect.sizeDelta = new Vector2(450f, 110f);
+            var bImg = bGo.AddComponent<Image>();
+            bImg.color = Color.white;
+            outButton = bGo.AddComponent<Button>();
+
+            var lblGo = new GameObject("Text_Label");
+            lblGo.transform.SetParent(bGo.transform, false);
+            var lblRect = lblGo.AddComponent<RectTransform>();
+            lblRect.anchorMin = Vector2.zero;
+            lblRect.anchorMax = Vector2.one;
+            lblRect.sizeDelta = Vector2.zero;
+            var tmpB = lblGo.AddComponent<TextMeshProUGUI>();
+            tmpB.text = btnLabel;
+            tmpB.fontSize = 38;
+            tmpB.fontStyle = FontStyles.Bold;
+            tmpB.alignment = TextAlignmentOptions.Center;
+            tmpB.color = new Color(0.15f, 0.15f, 0.15f);
+
+            pGo.SetActive(false);
+            return pGo;
+        }
+
+        private void Update()
+        {
+            if (_currentState == GameState.Ready)
+            {
+                // Ekrana ilk dokunma / fare tıklaması ile koşuyu başlat
+                bool isTapped = UnityEngine.Input.GetMouseButtonDown(0) || 
+                                (UnityEngine.Input.touchCount > 0 && UnityEngine.Input.GetTouch(0).phase == TouchPhase.Began);
+
+                if (isTapped)
+                {
+                    StartGame();
+                }
+            }
+        }
+
+        private void SetupReadyState()
+        {
+            _currentState = GameState.Ready;
+            OnGameStateChanged?.Invoke(_currentState);
+
+            if (_readyPanel != null)
+            {
+                _readyPanel.SetActive(true);
+                _readyPanel.transform.localScale = Vector3.one;
+
+                Transform animTarget = _tapToStartText != null ? _tapToStartText.transform : _readyPanel.transform;
+                animTarget.DOKill();
+                animTarget.localScale = Vector3.one;
+                animTarget.DOScale(1.12f, 0.7f).SetLoops(-1, LoopType.Yoyo).SetEase(Ease.InOutSine);
+            }
         }
 
         private void SetupUIButtons()
@@ -122,6 +305,20 @@ namespace GateRunner.Managers
         /// </summary>
         public void StartGame()
         {
+            if (_currentState == GameState.Running) return;
+
+            // Tap to Start panelini kapat
+            if (_readyPanel != null)
+            {
+                Transform animTarget = _tapToStartText != null ? _tapToStartText.transform : _readyPanel.transform;
+                animTarget.DOKill();
+                _readyPanel.transform.DOKill();
+                _readyPanel.transform.DOScale(Vector3.zero, 0.2f).SetEase(Ease.InBack).OnComplete(() =>
+                {
+                    _readyPanel.SetActive(false);
+                });
+            }
+
             _currentState = GameState.Running;
             OnGameStateChanged?.Invoke(_currentState);
 

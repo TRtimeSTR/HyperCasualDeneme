@@ -1,4 +1,5 @@
 using DG.Tweening;
+using GateRunner.Audio;
 using GateRunner.Managers;
 using GateRunner.Player;
 using Sirenix.OdinInspector;
@@ -79,6 +80,9 @@ namespace GateRunner.Collectibles
             {
                 ScoreManager.Instance.AddCoin(_pointValue);
             }
+
+            // Ses geri bildirimi
+            AudioManager.Instance?.PlayCoinSound();
 
             // DOTween toplama efekti: Hafif yukarı zıplayıp küçülerek yok olma
             transform.DOKill();

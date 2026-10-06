@@ -82,6 +82,13 @@ namespace GateRunner.Level
                 }
             }
 
+            // Seviye İlerlemesi: Her yeni seviyede yol uzunluğunu kademeli olarak artır
+            if (!_isEndlessMode && Managers.GameManager.Instance != null)
+            {
+                int currentLevel = Managers.GameManager.Instance.CurrentLevel;
+                _totalLevelSegments = Mathf.Clamp(12 + (currentLevel * 2), 10, 45);
+            }
+
             GenerateInitialTrack();
         }
 
@@ -173,12 +180,23 @@ namespace GateRunner.Level
             int spikeLaneIndex = Random.Range(0, lanes.Length);
             float spikeLaneX = lanes[spikeLaneIndex];
 
-            // 1. Diken / Engel yerleştir (1-2 adet)
+            // 1. Diken / Engel yerleştir (Seviye 2+'de ek engel sıklığı)
             float segmentStartZ = segment.transform.position.z;
             Obstacle obs = PoolManager.Instance.GetObstacle(new Vector3(spikeLaneX, 0f, segmentStartZ + 8f), Quaternion.identity);
             if (obs != null)
             {
                 segment.AttachObstacle(obs);
+            }
+
+            int currentLevel = Managers.GameManager.Instance != null ? Managers.GameManager.Instance.CurrentLevel : 1;
+            if (currentLevel >= 2 && Random.value < 0.45f)
+            {
+                int secondSpikeLane = (spikeLaneIndex + 1) % lanes.Length;
+                Obstacle secondObs = PoolManager.Instance.GetObstacle(new Vector3(lanes[secondSpikeLane], 0f, segmentStartZ + 13.5f), Quaternion.identity);
+                if (secondObs != null)
+                {
+                    segment.AttachObstacle(secondObs);
+                }
             }
 
             // 2. Güvenli şeritlerden birine altın dizisi yerleştir (Ödül & Yönlendirme)
