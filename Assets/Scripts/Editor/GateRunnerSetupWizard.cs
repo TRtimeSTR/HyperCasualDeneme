@@ -41,24 +41,6 @@ namespace GateRunner.Editor
             GetWindow<GateRunnerSetupWizard>("Gate Runner Setup").Show();
         }
 
-        [InitializeOnLoadMethod]
-        private static void AutoCheckMainLevelSetup()
-        {
-            EditorApplication.delayCall += () =>
-            {
-                var activeScene = UnityEngine.SceneManagement.SceneManager.GetActiveScene();
-                if (activeScene.name == "MainLevel")
-                {
-                    var levelGen = Object.FindAnyObjectByType<LevelGenerator>();
-                    if (levelGen == null)
-                    {
-                        Debug.Log("<color=#FF9800><b>[Gate Runner Setup]</b></color> MainLevel sahnesi eksik bileşenler içeriyor. Otomatik kurulum başlatılıyor...");
-                        SetupMainLevelDirect();
-                    }
-                }
-            };
-        }
-
         [Title("Gate Runner - Tam Oynanabilir Sahne Kurulum Sihirbazı", TitleAlignment = TitleAlignments.Centered)]
         [InfoBox("Bu sihirbaz;\n" +
                  "1. URP Materyallerini (Yol, Kapılar, Oyuncu, Altın, Dikenler, Bitiş Kemeri)\n" +
@@ -73,7 +55,6 @@ namespace GateRunner.Editor
         public void SetupPlayableMainLevel()
         {
             CreateDirectories();
-            FixOrVerifyDOTweenSettings();
             RunnerData runnerData = CreateOrLoadRunnerData();
 
             // 1. Materyaller
@@ -106,19 +87,6 @@ namespace GateRunner.Editor
             if (!Directory.Exists("Assets/Prefabs")) AssetDatabase.CreateFolder("Assets", "Prefabs");
             if (!Directory.Exists("Assets/Settings")) AssetDatabase.CreateFolder("Assets", "Settings");
             if (!Directory.Exists("Assets/Scenes")) AssetDatabase.CreateFolder("Assets", "Scenes");
-        }
-
-        private static void FixOrVerifyDOTweenSettings()
-        {
-            var settings = Resources.Load<DG.Tweening.Core.DOTweenSettings>("DOTweenSettings");
-            if (settings == null)
-            {
-                if (!Directory.Exists("Assets/Resources")) Directory.CreateDirectory("Assets/Resources");
-                var newSettings = ScriptableObject.CreateInstance<DG.Tweening.Core.DOTweenSettings>();
-                AssetDatabase.CreateAsset(newSettings, "Assets/Resources/DOTweenSettings.asset");
-                AssetDatabase.SaveAssets();
-                Debug.Log("<color=#4CAF50><b>[DOTween Setup]</b></color> DOTweenSettings başarıyla oluşturuldu.");
-            }
         }
 
         private static RunnerData CreateOrLoadRunnerData()

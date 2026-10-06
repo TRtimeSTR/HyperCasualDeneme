@@ -74,15 +74,15 @@ namespace GateRunner.Pooling
         public int ObstacleInactiveCount => _obstaclePool?.CountInactive ?? 0;
         #endregion
 
-        private ObjectPool<RoadSegment> _roadPool;
-        private ObjectPool<GatePair> _gatePool;
-        private ObjectPool<Coin> _coinPool;
-        private ObjectPool<Obstacle> _obstaclePool;
+        [System.NonSerialized] private ObjectPool<RoadSegment> _roadPool;
+        [System.NonSerialized] private ObjectPool<GatePair> _gatePool;
+        [System.NonSerialized] private ObjectPool<Coin> _coinPool;
+        [System.NonSerialized] private ObjectPool<Obstacle> _obstaclePool;
 
-        private Transform _roadContainer;
-        private Transform _gateContainer;
-        private Transform _coinContainer;
-        private Transform _obstacleContainer;
+        [System.NonSerialized] private Transform _roadContainer;
+        [System.NonSerialized] private Transform _gateContainer;
+        [System.NonSerialized] private Transform _coinContainer;
+        [System.NonSerialized] private Transform _obstacleContainer;
 
         private void Awake()
         {
