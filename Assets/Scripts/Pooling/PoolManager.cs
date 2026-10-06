@@ -51,8 +51,8 @@ namespace GateRunner.Pooling
         public int GateInactiveCount => _gatePool?.CountInactive ?? 0;
         #endregion
 
-        private IObjectPool<RoadSegment> _roadPool;
-        private IObjectPool<GatePair> _gatePool;
+        private ObjectPool<RoadSegment> _roadPool;
+        private ObjectPool<GatePair> _gatePool;
 
         private Transform _roadContainer;
         private Transform _gateContainer;

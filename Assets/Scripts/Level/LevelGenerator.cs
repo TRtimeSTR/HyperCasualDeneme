@@ -61,7 +61,7 @@ namespace GateRunner.Level
         {
             if (_playerTransform == null)
             {
-                var player = FindFirstObjectByType<SwerveMovement>();
+                var player = FindAnyObjectByType<SwerveMovement>();
                 if (player != null)
                 {
                     _playerTransform = player.transform;
@@ -172,6 +172,11 @@ namespace GateRunner.Level
                     leftData = new GateData(GateOperationType.Multiply, Random.Range(2, 3));
                     rightData = new GateData(GateOperationType.Divide, 2);
                     break;
+            }
+
+            if (_guaranteeOneBuff && !leftData.IsBuff && !rightData.IsBuff)
+            {
+                leftData = new GateData(GateOperationType.Add, Random.Range(10, 25));
             }
 
             // Rastgele sağ/sol yer değiştir (böylece ödül her zaman solda veya sağda kalmaz)

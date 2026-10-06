@@ -197,7 +197,7 @@ namespace GateRunner.Editor
         private static void SetupSceneHierarchy(RunnerData runnerData, RoadSegment roadPrefab, GatePair gatePairPrefab, Material playerMat)
         {
             // 1. Oyuncu (Player)
-            var player = FindFirstObjectByType<SwerveMovement>();
+            var player = FindAnyObjectByType<SwerveMovement>();
             if (player == null)
             {
                 GameObject playerGo = GameObject.CreatePrimitive(PrimitiveType.Capsule);
@@ -213,7 +213,7 @@ namespace GateRunner.Editor
             pSo.ApplyModifiedPropertiesWithoutUndo();
 
             // 2. PoolManager
-            var poolManager = FindFirstObjectByType<PoolManager>();
+            var poolManager = FindAnyObjectByType<PoolManager>();
             if (poolManager == null)
             {
                 GameObject poolGo = new GameObject("PoolManager");
@@ -226,7 +226,7 @@ namespace GateRunner.Editor
             poolSo.ApplyModifiedPropertiesWithoutUndo();
 
             // 3. LevelGenerator
-            var levelGen = FindFirstObjectByType<LevelGenerator>();
+            var levelGen = FindAnyObjectByType<LevelGenerator>();
             if (levelGen == null)
             {
                 GameObject genGo = new GameObject("LevelGenerator");
