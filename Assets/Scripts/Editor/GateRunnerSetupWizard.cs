@@ -5,6 +5,7 @@ using GateRunner.Gates;
 using GateRunner.Level;
 using GateRunner.Movement;
 using GateRunner.Pooling;
+using GateRunner.Player;
 using Sirenix.OdinInspector;
 using Sirenix.OdinInspector.Editor;
 using TMPro;
@@ -191,6 +192,13 @@ namespace GateRunner.Editor
             so.FindProperty("_triggerCollider").objectReferenceValue = col;
             so.ApplyModifiedPropertiesWithoutUndo();
 
+            var mathGate = gateGo.AddComponent<MathGate>();
+            var mSo = new SerializedObject(mathGate);
+            mSo.FindProperty("_textMesh").objectReferenceValue = tmp;
+            mSo.FindProperty("_gateRenderer").objectReferenceValue = renderer;
+            mSo.FindProperty("_triggerCollider").objectReferenceValue = col;
+            mSo.ApplyModifiedPropertiesWithoutUndo();
+
             return gate;
         }
 
@@ -206,6 +214,11 @@ namespace GateRunner.Editor
                 if (playerGo.TryGetComponent<Renderer>(out var pRen)) pRen.sharedMaterial = playerMat;
 
                 player = playerGo.AddComponent<SwerveMovement>();
+            }
+
+            if (!player.TryGetComponent<PlayerModifier>(out _))
+            {
+                player.gameObject.AddComponent<PlayerModifier>();
             }
 
             var pSo = new SerializedObject(player);
