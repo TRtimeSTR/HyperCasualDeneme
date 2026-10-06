@@ -1,7 +1,9 @@
 using System.Collections.Generic;
+using GateRunner.Collectibles;
 using GateRunner.Data;
 using GateRunner.Gates;
 using GateRunner.Movement;
+using GateRunner.Obstacles;
 using GateRunner.Pooling;
 using Sirenix.OdinInspector;
 using UnityEngine;
@@ -9,8 +11,9 @@ using UnityEngine;
 namespace GateRunner.Level
 {
     /// <summary>
-    /// Karakter ilerledikçe dinamik olarak yeni yol parçaları ve matematiksel kapılar üreten,
-    /// arkada kalanları PoolManager üzerinden havuza geri gönderen sonsuz seviye üreticisi.
+    /// Karakter ilerledikçe dinamik olarak yeni yol parçaları, matematiksel kapılar,
+    /// toplanabilir altınlar ve tehlikeli dikenler üreten seviye üreticisi.
+    /// Belirlenen segment sayısına ulaşıldığında bitiş çizgisini (FinishLine) doğurur.
     /// </summary>
     public class LevelGenerator : SerializedMonoBehaviour
     {
@@ -30,6 +33,20 @@ namespace GateRunner.Level
         [Tooltip("Oyuncunun ne kadar arkasında kalan yol parçaları havuza geri gönderilsin (metre)?")]
         [SerializeField, MinValue(10f)] private float _recycleDistanceBehind = 25.0f;
 
+        [TabGroup("GeneratorTabs", "Bölüm & Bitiş (Finish)", SdfIconType.FlagFill)]
+        [Tooltip("Sonsuz mod aktifse bitiş çizgisi çıkmaz, yol sürekli üretilir.")]
+        [SerializeField] private bool _isEndlessMode = false;
+
+        [TabGroup("GeneratorTabs", "Bölüm & Bitiş (Finish)")]
+        [Tooltip("Seviyenin toplam kaç yol segmentinden oluşacağı.")]
+        [SerializeField, MinValue(6), MaxValue(50), HideIf(nameof(_isEndlessMode))]
+        private int _totalLevelSegments = 16;
+
+        [TabGroup("GeneratorTabs", "Bölüm & Bitiş (Finish)")]
+        [Tooltip("Bölüm sonunda doğurulacak bitiş çizgisi prefab'i.")]
+        [SerializeField, HideIf(nameof(_isEndlessMode))]
+        private FinishLine _finishLinePrefab;
+
         [TabGroup("GeneratorTabs", "Kapı Ayarları (Gates)", SdfIconType.DoorOpen)]
         [Tooltip("İlk kapı çifti kaçıncı yol parçasından itibaren çıkmaya başlasın?")]
         [SerializeField, MinValue(1)] private int _firstGateSegmentIndex = 2;
@@ -37,10 +54,6 @@ namespace GateRunner.Level
         [TabGroup("GeneratorTabs", "Kapı Ayarları (Gates)")]
         [Tooltip("Kaç yol parçasında bir kapı çifti doğurulsun? (Örn: 2 = her 2 parçada bir)")]
         [SerializeField, MinValue(1)] private int _gateSegmentInterval = 2;
-
-        [TabGroup("GeneratorTabs", "Kapı Ayarları (Gates)")]
-        [Tooltip("Kapı çiftlerinden birinin pozitif (Buff) olma garantisi.")]
-        [SerializeField] private bool _guaranteeOneBuff = true;
 
         #region Live Stats (Odin)
         [ShowInInspector, ReadOnly, FoldoutGroup("Canlı İstatistikler")]
@@ -56,6 +69,7 @@ namespace GateRunner.Level
         private readonly Queue<RoadSegment> _activeSegments = new Queue<RoadSegment>();
         private float _nextSpawnZ = 0.0f;
         private int _totalSegmentsSpawned = 0;
+        private bool _finishSpawned = false;
 
         private void Start()
         {
@@ -75,9 +89,20 @@ namespace GateRunner.Level
         {
             if (_playerTransform == null) return;
 
+            // Sonsuz değilse ve bitiş doğurulduysa ve yeterli yol varsa daha fazla üretme
+            if (!_isEndlessMode && _finishSpawned && _nextSpawnZ > _playerTransform.position.z + _forwardSpawnDistance)
+            {
+                RecycleOldSegments();
+                return;
+            }
+
             // Oyuncunun önünü sürekli dolu tut
             while (_nextSpawnZ < _playerTransform.position.z + _forwardSpawnDistance)
             {
+                if (!_isEndlessMode && _totalSegmentsSpawned >= _totalLevelSegments + 2)
+                {
+                    break;
+                }
                 SpawnNextSegment();
             }
 
@@ -85,13 +110,11 @@ namespace GateRunner.Level
             RecycleOldSegments();
         }
 
-        /// <summary>
-        /// Seviye başında oyuncunun önüne başlangıç yol parçalarını dizer.
-        /// </summary>
         private void GenerateInitialTrack()
         {
             _nextSpawnZ = 0.0f;
             _totalSegmentsSpawned = 0;
+            _finishSpawned = false;
 
             for (int i = 0; i < _initialSegmentCount; i++)
             {
@@ -99,9 +122,6 @@ namespace GateRunner.Level
             }
         }
 
-        /// <summary>
-        /// Havuzdan bir sonraki yol parçasını alır ve gerekiyorsa üzerine kapı çifti yerleştirir.
-        /// </summary>
         private void SpawnNextSegment()
         {
             if (PoolManager.Instance == null)
@@ -115,37 +135,64 @@ namespace GateRunner.Level
 
             _totalSegmentsSpawned++;
 
-            // Kapı doğurma kontrolü
-            if (ShouldSpawnGateOnSegment(_totalSegmentsSpawned))
+            // Bitiş çizgisi kontrolü
+            if (!_isEndlessMode && _totalSegmentsSpawned == _totalLevelSegments)
+            {
+                SpawnFinishLineOnSegment(segment);
+            }
+            else if (ShouldSpawnGateOnSegment(_totalSegmentsSpawned))
             {
                 SpawnGatePairOnSegment(segment);
             }
-            else
+            else if (_totalSegmentsSpawned > 1 && (!_finishSpawned || _totalSegmentsSpawned < _totalLevelSegments))
             {
-                // Kapı olmayan parçalara toplanabilir altın dizileri yerleştir
-                SpawnCoinsOnSegment(segment);
+                // Engel ve altın yerleşimi: Oyuncuyu yönlendiren klasik hypercasual düzen
+                SpawnObstaclesAndCoinsOnSegment(segment);
             }
 
             _activeSegments.Enqueue(segment);
             _nextSpawnZ += segment.Length;
         }
 
-        private void SpawnCoinsOnSegment(RoadSegment segment)
+        private void SpawnFinishLineOnSegment(RoadSegment segment)
+        {
+            _finishSpawned = true;
+            if (_finishLinePrefab != null)
+            {
+                Vector3 finishPos = segment.transform.position + new Vector3(0f, 0f, segment.Length * 0.5f);
+                FinishLine finishInstance = Instantiate(_finishLinePrefab, finishPos, Quaternion.identity, segment.transform);
+                finishInstance.ResetFinishLine();
+            }
+        }
+
+        private void SpawnObstaclesAndCoinsOnSegment(RoadSegment segment)
         {
             if (PoolManager.Instance == null) return;
 
-            // Rastgele bir şerit seç: Sol (-2.2), Orta (0), Sağ (+2.2)
             float[] lanes = { -2.2f, 0f, 2.2f };
-            float chosenLaneX = lanes[Random.Range(0, lanes.Length)];
+            int spikeLaneIndex = Random.Range(0, lanes.Length);
+            float spikeLaneX = lanes[spikeLaneIndex];
 
-            int coinCount = 4;
-            float startZ = segment.transform.position.z + 4.0f;
+            // 1. Diken / Engel yerleştir (1-2 adet)
+            float segmentStartZ = segment.transform.position.z;
+            Obstacle obs = PoolManager.Instance.GetObstacle(new Vector3(spikeLaneX, 0f, segmentStartZ + 8f), Quaternion.identity);
+            if (obs != null)
+            {
+                segment.AttachObstacle(obs);
+            }
+
+            // 2. Güvenli şeritlerden birine altın dizisi yerleştir (Ödül & Yönlendirme)
+            int coinLaneIndex = (spikeLaneIndex + Random.Range(1, 3)) % lanes.Length;
+            float coinLaneX = lanes[coinLaneIndex];
+
+            int coinCount = 3;
+            float startZ = segmentStartZ + 4.0f;
             float spacing = 3.0f;
 
             for (int i = 0; i < coinCount; i++)
             {
-                Vector3 coinPos = new Vector3(chosenLaneX, 0.9f, startZ + (i * spacing));
-                var coin = PoolManager.Instance.GetCoin(coinPos, Quaternion.identity);
+                Vector3 coinPos = new Vector3(coinLaneX, 0.9f, startZ + (i * spacing));
+                Coin coin = PoolManager.Instance.GetCoin(coinPos, Quaternion.identity);
                 if (coin != null)
                 {
                     segment.AttachCoin(coin);
@@ -156,75 +203,54 @@ namespace GateRunner.Level
         private bool ShouldSpawnGateOnSegment(int segmentIndex)
         {
             if (segmentIndex < _firstGateSegmentIndex) return false;
+            if (!_isEndlessMode && segmentIndex >= _totalLevelSegments - 1) return false;
             return (segmentIndex - _firstGateSegmentIndex) % _gateSegmentInterval == 0;
         }
 
-        /// <summary>
-        /// Segment üzerindeki montaj yuvasına bir kapı çifti doğurur ve dengeli matematiksel veriler atar.
-        /// </summary>
         private void SpawnGatePairOnSegment(RoadSegment segment)
         {
             GatePair gatePair = PoolManager.Instance.GetGatePair(Vector3.zero, Quaternion.identity);
 
-            // Dengeli ve eğlenceli kapı seçenekleri oluştur (+15 vs x2 veya +20 vs -10)
             GenerateBalancedGatePairData(out GateData leftData, out GateData rightData);
             gatePair.Configure(leftData, rightData);
 
             segment.AttachGatePair(gatePair);
         }
 
-        /// <summary>
-        /// Hypercasual gate runner dinamiğine uygun sol ve sağ kapı matematik verileri üretir.
-        /// </summary>
         private void GenerateBalancedGatePairData(out GateData leftData, out GateData rightData)
         {
             int scenario = Random.Range(0, 3);
 
             switch (scenario)
             {
-                // Senaryo 0: İki Farklı Pozitif Seçenek (Taktiksel Seçim: +Toplama vs xÇarpma)
                 case 0:
                     leftData = new GateData(GateOperationType.Add, Random.Range(10, 35));
                     rightData = new GateData(GateOperationType.Multiply, Random.Range(2, 4));
                     break;
 
-                // Senaryo 1: Bir Büyük Pozitif vs Bir Negatif Engel (+20 vs -10)
                 case 1:
                     leftData = new GateData(GateOperationType.Add, Random.Range(15, 30));
                     rightData = new GateData(GateOperationType.Subtract, Random.Range(5, 15));
                     break;
 
-                // Senaryo 2: Bir Çarpma vs Bir Bölme (x2 vs ÷2)
                 case 2:
                 default:
                     leftData = new GateData(GateOperationType.Multiply, Random.Range(2, 3));
                     rightData = new GateData(GateOperationType.Divide, 2);
                     break;
             }
-
-            if (_guaranteeOneBuff && !leftData.IsBuff && !rightData.IsBuff)
-            {
-                leftData = new GateData(GateOperationType.Add, Random.Range(10, 25));
-            }
-
-            // Rastgele sağ/sol yer değiştir (böylece ödül her zaman solda veya sağda kalmaz)
-            if (Random.value > 0.5f)
-            {
-                (leftData, rightData) = (rightData, leftData);
-            }
         }
 
-        /// <summary>
-        /// Karakterin arkasında kalan eski parçaları sırayla kontrol edip havuza bırakır.
-        /// </summary>
         private void RecycleOldSegments()
         {
+            if (_playerTransform == null || PoolManager.Instance == null) return;
+
             while (_activeSegments.Count > 0)
             {
                 RoadSegment oldestSegment = _activeSegments.Peek();
-                float segmentZEnd = oldestSegment.transform.position.z + oldestSegment.Length;
+                float segmentEndZ = oldestSegment.transform.position.z + oldestSegment.Length;
 
-                if (_playerTransform.position.z - segmentZEnd > _recycleDistanceBehind)
+                if (segmentEndZ < _playerTransform.position.z - _recycleDistanceBehind)
                 {
                     _activeSegments.Dequeue();
                     PoolManager.Instance.ReleaseRoadSegment(oldestSegment);
@@ -236,14 +262,16 @@ namespace GateRunner.Level
             }
         }
 
-        #region Odin Inspector Tools
-        [Button("Seviyeyi Yeniden Başlat (Reset)", ButtonSizes.Medium), FoldoutGroup("Seviye Kontrolleri")]
-        public void ResetGenerator()
+        #region Odin Inspector Test
+        [Button("Seviyeyi Sıfırla (Reset Track)", ButtonSizes.Small), TabGroup("GeneratorTabs", "Genel Ayarlar")]
+        public void ResetTrack()
         {
+            if (PoolManager.Instance == null) return;
+
             while (_activeSegments.Count > 0)
             {
                 RoadSegment segment = _activeSegments.Dequeue();
-                PoolManager.Instance?.ReleaseRoadSegment(segment);
+                PoolManager.Instance.ReleaseRoadSegment(segment);
             }
 
             GenerateInitialTrack();

@@ -26,6 +26,7 @@ namespace GateRunner.Level
         public GatePair AttachedGatePair { get; private set; }
 
         private readonly List<Coin> _attachedCoins = new List<Coin>();
+        private readonly List<Obstacles.Obstacle> _attachedObstacles = new List<Obstacles.Obstacle>();
 
         public float Length => _length;
         public Transform GateSocket => _gateSocket != null ? _gateSocket : transform;
@@ -57,6 +58,18 @@ namespace GateRunner.Level
         }
 
         /// <summary>
+        /// Segment üzerine doğan bir engeli bağlar.
+        /// </summary>
+        public void AttachObstacle(Obstacles.Obstacle obstacle)
+        {
+            if (obstacle != null)
+            {
+                obstacle.transform.SetParent(transform);
+                _attachedObstacles.Add(obstacle);
+            }
+        }
+
+        /// <summary>
         /// Segment havuza dönerken üzerinde kalan toplanmamış altınları havuza bırakır.
         /// </summary>
         public void ReleaseAttachedCoins()
@@ -69,6 +82,21 @@ namespace GateRunner.Level
                 }
             }
             _attachedCoins.Clear();
+        }
+
+        /// <summary>
+        /// Segment havuza dönerken üzerinde kalan engelleri havuza bırakır.
+        /// </summary>
+        public void ReleaseAttachedObstacles()
+        {
+            for (int i = 0; i < _attachedObstacles.Count; i++)
+            {
+                if (_attachedObstacles[i] != null && _attachedObstacles[i].gameObject.activeSelf)
+                {
+                    PoolManager.Instance?.ReleaseObstacle(_attachedObstacles[i]);
+                }
+            }
+            _attachedObstacles.Clear();
         }
 
         /// <summary>
@@ -90,6 +118,7 @@ namespace GateRunner.Level
         {
             DetachGatePair();
             _attachedCoins.Clear();
+            _attachedObstacles.Clear();
         }
 
         #region Editor Gizmos

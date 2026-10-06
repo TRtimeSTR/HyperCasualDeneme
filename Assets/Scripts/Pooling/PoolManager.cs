@@ -1,6 +1,7 @@
 using GateRunner.Collectibles;
 using GateRunner.Gates;
 using GateRunner.Level;
+using GateRunner.Obstacles;
 using Sirenix.OdinInspector;
 using UnityEngine;
 using UnityEngine.Pool;
@@ -8,7 +9,7 @@ using UnityEngine.Pool;
 namespace GateRunner.Pooling
 {
     /// <summary>
-    /// UnityEngine.Pool API'sini kullanarak RoadSegment, GatePair ve Coin objelerinin
+    /// UnityEngine.Pool API'sini kullanarak RoadSegment, GatePair, Coin ve Obstacle objelerinin
     /// yüksek performanslı bellek havuzlamasını (Object Pooling) yöneten merkezi sınıf.
     /// Odin Inspector ile canlı havuz durumunu ve yönetim araçlarını sunar.
     /// </summary>
@@ -30,6 +31,10 @@ namespace GateRunner.Pooling
         [Required("Coin prefab'i atanmalıdır.")]
         [AssetsOnly]
         [SerializeField] private Coin _coinPrefab;
+
+        [FoldoutGroup("Prefab Tanımları")]
+        [AssetsOnly]
+        [SerializeField] private Obstacle _obstaclePrefab;
 
         [FoldoutGroup("Havuz Kapasite Ayarları")]
         [MinValue(5), MaxValue(50)]
@@ -61,15 +66,23 @@ namespace GateRunner.Pooling
 
         [ShowInInspector, ReadOnly, FoldoutGroup("Canlı Havuz İstatistikleri")]
         public int CoinInactiveCount => _coinPool?.CountInactive ?? 0;
+
+        [ShowInInspector, ReadOnly, FoldoutGroup("Canlı Havuz İstatistikleri")]
+        public int ObstacleActiveCount => _obstaclePool?.CountActive ?? 0;
+
+        [ShowInInspector, ReadOnly, FoldoutGroup("Canlı Havuz İstatistikleri")]
+        public int ObstacleInactiveCount => _obstaclePool?.CountInactive ?? 0;
         #endregion
 
         private ObjectPool<RoadSegment> _roadPool;
         private ObjectPool<GatePair> _gatePool;
         private ObjectPool<Coin> _coinPool;
+        private ObjectPool<Obstacle> _obstaclePool;
 
         private Transform _roadContainer;
         private Transform _gateContainer;
         private Transform _coinContainer;
+        private Transform _obstacleContainer;
 
         private void Awake()
         {
@@ -94,6 +107,9 @@ namespace GateRunner.Pooling
 
             _coinContainer = new GameObject("[Pool_Coins]").transform;
             _coinContainer.SetParent(transform);
+
+            _obstacleContainer = new GameObject("[Pool_Obstacles]").transform;
+            _obstacleContainer.SetParent(transform);
         }
 
         private void InitializePools()
@@ -130,6 +146,19 @@ namespace GateRunner.Pooling
                     maxSize: _maxPoolSize * 2
                 );
             }
+
+            if (_obstaclePrefab != null)
+            {
+                _obstaclePool = new ObjectPool<Obstacle>(
+                    createFunc: CreateObstacle,
+                    actionOnGet: OnGetObstacle,
+                    actionOnRelease: OnReleaseObstacle,
+                    actionOnDestroy: OnDestroyPoolItem,
+                    collectionCheck: _collectionCheck,
+                    defaultCapacity: _defaultCapacity,
+                    maxSize: _maxPoolSize
+                );
+            }
         }
 
         #region RoadSegment Callbacks
@@ -154,8 +183,8 @@ namespace GateRunner.Pooling
                 segment.DetachGatePair();
             }
 
-            // Segment üzerindeki altınları serbest bırak
             segment.ReleaseAttachedCoins();
+            segment.ReleaseAttachedObstacles();
 
             segment.gameObject.SetActive(false);
             segment.transform.SetParent(_roadContainer);
@@ -201,6 +230,26 @@ namespace GateRunner.Pooling
         {
             coin.gameObject.SetActive(false);
             coin.transform.SetParent(_coinContainer);
+        }
+        #endregion
+
+        #region Obstacle Callbacks
+        private Obstacle CreateObstacle()
+        {
+            Obstacle obs = Instantiate(_obstaclePrefab, _obstacleContainer);
+            obs.gameObject.SetActive(false);
+            return obs;
+        }
+
+        private void OnGetObstacle(Obstacle obs)
+        {
+            obs.ResetObstacle();
+        }
+
+        private void OnReleaseObstacle(Obstacle obs)
+        {
+            obs.gameObject.SetActive(false);
+            obs.transform.SetParent(_obstacleContainer);
         }
         #endregion
 
@@ -259,6 +308,23 @@ namespace GateRunner.Pooling
             if (coin == null || _coinPool == null) return;
             _coinPool.Release(coin);
         }
+
+        public Obstacle GetObstacle(Vector3 position, Quaternion rotation)
+        {
+            if (_obstaclePool == null) InitializePools();
+            if (_obstaclePool == null) return null;
+
+            Obstacle obs = _obstaclePool.Get();
+            obs.transform.position = position;
+            obs.transform.rotation = rotation;
+            return obs;
+        }
+
+        public void ReleaseObstacle(Obstacle obs)
+        {
+            if (obs == null || _obstaclePool == null) return;
+            _obstaclePool.Release(obs);
+        }
         #endregion
 
         #region Odin Inspector Tools
@@ -289,6 +355,7 @@ namespace GateRunner.Pooling
             _roadPool?.Clear();
             _gatePool?.Clear();
             _coinPool?.Clear();
+            _obstaclePool?.Clear();
         }
         #endregion
     }

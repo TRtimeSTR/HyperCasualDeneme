@@ -68,11 +68,15 @@ namespace GateRunner.Player
         #region Events
         public event Action<int> OnScoreChanged;
         public event Action<Vector3> OnScaleChanged;
+        public event Action OnPlayerDied;
         #endregion
 
         private int _currentScore;
         private Vector3 _targetScale = Vector3.one;
+        private bool _isAlive = true;
         private Transform TargetTransform => _visualModel != null ? _visualModel : transform;
+
+        public bool IsAlive => _isAlive;
 
         private void Awake()
         {
@@ -82,6 +86,7 @@ namespace GateRunner.Player
                 _visualModel = transform.Find("Visual") ?? transform;
             }
 
+            _isAlive = true;
             _currentScore = _initialScore;
             RecalculateTargetScale();
             TargetTransform.localScale = _targetScale;
@@ -89,6 +94,7 @@ namespace GateRunner.Player
 
         private void Update()
         {
+            if (!_isAlive) return;
             ApplySmoothScaling();
         }
 
@@ -97,6 +103,8 @@ namespace GateRunner.Player
         /// </summary>
         public void ApplyGateOperation(GateOperationType operationType, int value)
         {
+            if (!_isAlive) return;
+
             int previousScore = _currentScore;
 
             _currentScore = operationType switch
@@ -116,6 +124,79 @@ namespace GateRunner.Player
 
             // DOTween ile Pop-Up / Punch / Shake Animasyonu
             ApplyDOTweenScaleFeedback(operationType);
+        }
+
+        /// <summary>
+        /// Engellere (Spike vb.) çarpıldığında hasar alır, skoru ve boyutu düşürür. Skor tükenirse oyuncu elenir.
+        /// </summary>
+        public void TakeDamage(int damageAmount)
+        {
+            if (!_isAlive) return;
+
+            int previousScore = _currentScore;
+            _currentScore -= damageAmount;
+
+            Debug.Log($"<color=#FF5252><b>[Engel Çarpışması]</b></color> Hasar: -{damageAmount} | Kalan Skor: {_currentScore}");
+
+            if (_currentScore <= 0)
+            {
+                _currentScore = 0;
+                OnScoreChanged?.Invoke(0);
+                Die();
+                return;
+            }
+
+            RecalculateTargetScale();
+            OnScoreChanged?.Invoke(_currentScore);
+            OnScaleChanged?.Invoke(_targetScale);
+
+            // Sarsılma (Shake) geri bildirimi
+            Transform t = TargetTransform;
+            t.DOKill();
+            t.DOScale(_targetScale, 0.2f).SetEase(Ease.OutQuad).OnComplete(() =>
+            {
+                t.DOShakeScale(0.3f, 0.25f, 10, 90f);
+            });
+        }
+
+        /// <summary>
+        /// Oyuncu öldüğünde hareketi durdurur, yok olma animasyonu oynatır ve GameOver tetikler.
+        /// </summary>
+        private void Die()
+        {
+            if (!_isAlive) return;
+            _isAlive = false;
+
+            var movement = GetComponent<SwerveMovement>();
+            if (movement != null)
+            {
+                movement.SetMovementState(false);
+            }
+
+            Transform t = TargetTransform;
+            t.DOKill();
+            t.DOScale(Vector3.zero, 0.4f).SetEase(Ease.InBack).OnComplete(() =>
+            {
+                Managers.GameManager.Instance?.LevelFail();
+                OnPlayerDied?.Invoke();
+            });
+        }
+
+        /// <summary>
+        /// Bitiş çizgisine ulaşıldığında zafer zıplaması ve kutlama animasyonu oynatır.
+        /// </summary>
+        public void CelebrateVictory()
+        {
+            var movement = GetComponent<SwerveMovement>();
+            if (movement != null)
+            {
+                movement.SetMovementState(false);
+            }
+
+            Transform t = TargetTransform;
+            t.DOKill();
+            t.DOPunchScale(Vector3.one * 0.3f, 0.6f, 5, 0.5f);
+            t.DOLocalJump(t.localPosition, 1.2f, 2, 0.8f).SetEase(Ease.OutQuad);
         }
 
         private void ApplyDOTweenScaleFeedback(GateOperationType operationType)

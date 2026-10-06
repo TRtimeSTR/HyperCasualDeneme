@@ -19,7 +19,10 @@ namespace GateRunner.Editor
         MathGate,
 
         [InspectorName("Toplanabilir Altın (Coin)")]
-        Coin
+        Coin,
+
+        [InspectorName("Bitiş Kemeri (Finish Arch)")]
+        FinishArch
     }
 
     /// <summary>
@@ -94,6 +97,7 @@ namespace GateRunner.Editor
                     BlenderAssetType.Spike => "Obstacle_Spike",
                     BlenderAssetType.MathGate => "Gate_Frame",
                     BlenderAssetType.Coin => "Coin_Gold",
+                    BlenderAssetType.FinishArch => "Finish_Arch",
                     _ => "GeneratedAsset"
                 };
             }
