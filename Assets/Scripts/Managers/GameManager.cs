@@ -4,6 +4,7 @@ using DG.Tweening;
 using Sirenix.OdinInspector;
 using TMPro;
 using UnityEngine;
+using UnityEngine.InputSystem;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
@@ -245,9 +246,10 @@ namespace GateRunner.Managers
         {
             if (_currentState == GameState.Ready)
             {
-                // Ekrana ilk dokunma / fare tıklaması ile koşuyu başlat
-                bool isTapped = UnityEngine.Input.GetMouseButtonDown(0) || 
-                                (UnityEngine.Input.touchCount > 0 && UnityEngine.Input.GetTouch(0).phase == TouchPhase.Began);
+                // New Input System: Ekrana ilk dokunma veya fare tıklaması ile koşuyu başlat
+                bool isTapped = (Pointer.current != null && Pointer.current.press.wasPressedThisFrame) ||
+                                (Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame) ||
+                                (Touchscreen.current != null && Touchscreen.current.primaryTouch.press.wasPressedThisFrame);
 
                 if (isTapped)
                 {
