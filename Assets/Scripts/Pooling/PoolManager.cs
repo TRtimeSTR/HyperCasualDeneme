@@ -164,7 +164,22 @@ namespace GateRunner.Pooling
         #region RoadSegment Callbacks
         private RoadSegment CreateRoadSegment()
         {
-            RoadSegment segment = Instantiate(_roadSegmentPrefab, _roadContainer);
+            RoadSegment segment;
+            if (_roadSegmentPrefab != null)
+            {
+                segment = Instantiate(_roadSegmentPrefab, _roadContainer);
+            }
+            else
+            {
+                GameObject root = new GameObject("RoadSegment_Fallback");
+                root.transform.SetParent(_roadContainer);
+                segment = root.AddComponent<RoadSegment>();
+                GameObject visual = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                visual.name = "Floor";
+                visual.transform.SetParent(root.transform);
+                visual.transform.localPosition = new Vector3(0f, -0.2f, 10f);
+                visual.transform.localScale = new Vector3(9f, 0.4f, 20f);
+            }
             segment.gameObject.SetActive(false);
             return segment;
         }
@@ -194,7 +209,17 @@ namespace GateRunner.Pooling
         #region GatePair Callbacks
         private GatePair CreateGatePair()
         {
-            GatePair pair = Instantiate(_gatePairPrefab, _gateContainer);
+            GatePair pair;
+            if (_gatePairPrefab != null)
+            {
+                pair = Instantiate(_gatePairPrefab, _gateContainer);
+            }
+            else
+            {
+                GameObject root = new GameObject("GatePair_Fallback");
+                root.transform.SetParent(_gateContainer);
+                pair = root.AddComponent<GatePair>();
+            }
             pair.gameObject.SetActive(false);
             return pair;
         }

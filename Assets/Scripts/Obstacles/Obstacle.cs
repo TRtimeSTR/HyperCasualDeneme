@@ -1,6 +1,5 @@
 using DG.Tweening;
 using GateRunner.Player;
-using GateRunner.Pooling;
 using Sirenix.OdinInspector;
 using UnityEngine;
 
