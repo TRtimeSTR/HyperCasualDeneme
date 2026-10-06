@@ -1,8 +1,10 @@
 #if UNITY_EDITOR
 using System.IO;
+using GateRunner.Collectibles;
 using GateRunner.Data;
 using GateRunner.Gates;
 using GateRunner.Level;
+using GateRunner.Managers;
 using GateRunner.Movement;
 using GateRunner.Pooling;
 using GateRunner.Player;
@@ -12,54 +14,57 @@ using TMPro;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.InputSystem.UI;
+using UnityEngine.UI;
 
 namespace GateRunner.Editor
 {
     /// <summary>
-    /// Gate Runner projesinin tüm materyallerini, prefablerini ve sahne bileşenlerini
-    /// tek tıkla otomatik kuran Odin Inspector destekli kurulum sihirbazı.
+    /// Gate Runner projesinin tüm materyallerini, prefablerini, UI sistemini
+    /// ve oynanabilir MainLevel sahnesini tek tıkla kuran kurulum sihirbazı.
     /// </summary>
     public class GateRunnerSetupWizard : OdinEditorWindow
     {
+        [MenuItem("Tools/Gate Runner/🎮 Oynanabilir MainLevel Sahnesini Kur (Tek Tık)", priority = 0)]
+        public static void SetupMainLevelDirect()
+        {
+            var wizard = CreateInstance<GateRunnerSetupWizard>();
+            wizard.SetupPlayableMainLevel();
+            DestroyImmediate(wizard);
+        }
+
         [MenuItem("Tools/Gate Runner/⚡ Setup Wizard (Odin)", priority = 1)]
         private static void OpenWindow()
         {
             GetWindow<GateRunnerSetupWizard>("Gate Runner Setup").Show();
         }
 
-        [MenuItem("Tools/Gate Runner/Hızlı Kurulum (Otomatik Sahne & Prefab)", priority = 2)]
-        public static void QuickSetupDirect()
-        {
-            var wizard = CreateInstance<GateRunnerSetupWizard>();
-            wizard.SetupAll();
-            DestroyImmediate(wizard);
-        }
-
-        [Title("Gate Runner - Otomatik Sahne & Prefab Kurulum Sihirbazı", TitleAlignment = TitleAlignments.Centered)]
+        [Title("Gate Runner - Tam Oynanabilir Sahne Kurulum Sihirbazı", TitleAlignment = TitleAlignments.Centered)]
         [InfoBox("Bu sihirbaz;\n" +
-                 "1. URP Materyallerini (Yol, Kapılar, Oyuncu)\n" +
-                 "2. RoadSegment ve GatePair Prefablerini\n" +
-                 "3. Sahnede Player, PoolManager ve LevelGenerator objelerini\n" +
-                 "tek tıkla kurar ve birbirine bağlar.")]
+                 "1. URP Materyallerini (Yol, Kapılar, Oyuncu, Altın)\n" +
+                 "2. RoadSegment, GatePair ve Coin Prefablerini\n" +
+                 "3. Skor & Altın UI Canvas sistemini (DOTween Punch animasyonlu)\n" +
+                 "4. Pürüzsüz Takip Kamerasını (RunnerCamera)\n" +
+                 "5. Tam oynanabilir 'MainLevel' sahnesini kurar ve kaydeder.")]
 
-        [Button("⚡ HER ŞEYİ OTOMATİK KUR (Setup All)", ButtonSizes.Large)]
-        [GUIColor(0.2f, 0.8f, 0.3f)]
-        public void SetupAll()
+        [Button("🎮 OYNANABİLİR MAINLEVEL SAHNESİNİ KUR (Setup All)", ButtonSizes.Large)]
+        [GUIColor(0.2f, 0.85f, 0.35f)]
+        public void SetupPlayableMainLevel()
         {
             CreateDirectories();
             RunnerData runnerData = CreateOrLoadRunnerData();
-            (Material roadMat, Material buffMat, Material debuffMat, Material playerMat) = CreateMaterials();
+            (Material roadMat, Material buffMat, Material debuffMat, Material playerMat, Material coinMat) = CreateMaterials();
+
             RoadSegment roadPrefab = CreateRoadSegmentPrefab(roadMat);
             GatePair gatePairPrefab = CreateGatePairPrefab(buffMat, debuffMat);
+            Coin coinPrefab = CreateCoinPrefab(coinMat);
 
-            SetupSceneHierarchy(runnerData, roadPrefab, gatePairPrefab, playerMat);
+            CreateAndPopulateMainLevelScene(runnerData, roadPrefab, gatePairPrefab, coinPrefab, playerMat);
 
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
-            EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());
-            EditorSceneManager.SaveScene(EditorSceneManager.GetActiveScene());
 
-            EditorUtility.DisplayDialog("Başarılı!", "Gate Runner seviye üretimi, havuzlama ve sahne bileşenleri başarıyla kuruldu!", "Tamam");
+            EditorUtility.DisplayDialog("Tebrikler!", "MainLevel sahnesi, UI Canvas, Coin havuzu ve oyuncu kontrolleri başarıyla kuruldu!\n\nArtık Unity'de 'Play' tuşuna basarak oyunu hemen oynayabilirsiniz!", "Harika");
         }
 
         private static void CreateDirectories()
@@ -67,6 +72,7 @@ namespace GateRunner.Editor
             if (!Directory.Exists("Assets/Materials")) AssetDatabase.CreateFolder("Assets", "Materials");
             if (!Directory.Exists("Assets/Prefabs")) AssetDatabase.CreateFolder("Assets", "Prefabs");
             if (!Directory.Exists("Assets/Settings")) AssetDatabase.CreateFolder("Assets", "Settings");
+            if (!Directory.Exists("Assets/Scenes")) AssetDatabase.CreateFolder("Assets", "Scenes");
         }
 
         private static RunnerData CreateOrLoadRunnerData()
@@ -81,7 +87,7 @@ namespace GateRunner.Editor
             return data;
         }
 
-        private static (Material, Material, Material, Material) CreateMaterials()
+        private static (Material, Material, Material, Material, Material) CreateMaterials()
         {
             Shader urpShader = Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Standard");
 
@@ -89,8 +95,9 @@ namespace GateRunner.Editor
             Material buffMat = GetOrCreateMaterial("Assets/Materials/Mat_GateBuff.mat", urpShader, new Color(0.12f, 0.65f, 1.0f, 0.85f));
             Material debuffMat = GetOrCreateMaterial("Assets/Materials/Mat_GateDebuff.mat", urpShader, new Color(1.0f, 0.25f, 0.25f, 0.85f));
             Material playerMat = GetOrCreateMaterial("Assets/Materials/Mat_Player.mat", urpShader, new Color(1.0f, 0.5f, 0.05f));
+            Material coinMat = GetOrCreateMaterial("Assets/Materials/Mat_CoinGold.mat", urpShader, new Color(1.0f, 0.82f, 0.1f));
 
-            return (roadMat, buffMat, debuffMat, playerMat);
+            return (roadMat, buffMat, debuffMat, playerMat, coinMat);
         }
 
         private static Material GetOrCreateMaterial(string path, Shader shader, Color color)
@@ -168,12 +175,12 @@ namespace GateRunner.Editor
 
             var col = gateGo.GetComponent<BoxCollider>();
             col.isTrigger = true;
-            col.size = new Vector3(1f, 1f, 3.5f); // Rahat algılama için Z genişliği
+            col.size = new Vector3(1f, 1f, 3.5f);
 
             var renderer = gateGo.GetComponent<Renderer>();
             renderer.sharedMaterial = mat;
 
-            // TextMeshPro oluştur
+            // TextMeshPro
             GameObject textGo = new GameObject("Text_Value");
             textGo.transform.SetParent(gateGo.transform);
             textGo.transform.localPosition = new Vector3(0f, 0f, -0.6f);
@@ -202,61 +209,185 @@ namespace GateRunner.Editor
             return gate;
         }
 
-        private static void SetupSceneHierarchy(RunnerData runnerData, RoadSegment roadPrefab, GatePair gatePairPrefab, Material playerMat)
+        private static Coin CreateCoinPrefab(Material coinMat)
         {
-            // 1. Oyuncu (Player)
-            var player = FindAnyObjectByType<SwerveMovement>();
-            if (player == null)
-            {
-                GameObject playerGo = GameObject.CreatePrimitive(PrimitiveType.Capsule);
-                playerGo.name = "Player";
-                playerGo.transform.position = new Vector3(0f, 1f, 0f);
-                if (playerGo.TryGetComponent<Renderer>(out var pRen)) pRen.sharedMaterial = playerMat;
+            const string prefabPath = "Assets/Prefabs/Coin.prefab";
 
-                player = playerGo.AddComponent<SwerveMovement>();
+            GameObject root = new GameObject("Coin");
+            var coin = root.AddComponent<Coin>();
+
+            // Blender'dan ürettiğimiz modeli yükle veya primitive silindir oluştur
+            GameObject coinFbx = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Models/Generated/Coin_Gold.fbx");
+            GameObject visual;
+
+            if (coinFbx != null)
+            {
+                visual = (GameObject)PrefabUtility.InstantiatePrefab(coinFbx, root.transform);
+                visual.name = "Coin_Mesh";
+                visual.transform.localPosition = Vector3.zero;
+                visual.transform.localRotation = Quaternion.identity;
+                visual.transform.localScale = Vector3.one * 0.9f;
+
+                if (visual.TryGetComponent<Renderer>(out var ren)) ren.sharedMaterial = coinMat;
+                foreach (var r in visual.GetComponentsInChildren<Renderer>()) r.sharedMaterial = coinMat;
+            }
+            else
+            {
+                visual = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+                visual.name = "Coin_Mesh";
+                visual.transform.SetParent(root.transform);
+                visual.transform.localPosition = Vector3.zero;
+                visual.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
+                visual.transform.localScale = new Vector3(0.8f, 0.15f, 0.8f);
+                if (visual.TryGetComponent<Renderer>(out var ren)) ren.sharedMaterial = coinMat;
             }
 
-            if (!player.TryGetComponent<PlayerModifier>(out _))
-            {
-                player.gameObject.AddComponent<PlayerModifier>();
-            }
+            // Tetikleyici Sphere Collider
+            var sphereCol = root.AddComponent<SphereCollider>();
+            sphereCol.isTrigger = true;
+            sphereCol.radius = 0.7f;
 
-            var pSo = new SerializedObject(player);
+            var coinSo = new SerializedObject(coin);
+            coinSo.FindProperty("_triggerCollider").objectReferenceValue = sphereCol;
+            coinSo.ApplyModifiedPropertiesWithoutUndo();
+
+            GameObject prefab = PrefabUtility.SaveAsPrefabAsset(root, prefabPath);
+            DestroyImmediate(root);
+            return prefab.GetComponent<Coin>();
+        }
+
+        private static void CreateAndPopulateMainLevelScene(
+            RunnerData runnerData,
+            RoadSegment roadPrefab,
+            GatePair gatePairPrefab,
+            Coin coinPrefab,
+            Material playerMat)
+        {
+            const string scenePath = "Assets/Scenes/MainLevel.unity";
+
+            // Yeni sahne oluştur
+            var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+
+            // 1. Directional Light
+            GameObject lightGo = new GameObject("Directional Light");
+            var light = lightGo.AddComponent<UnityEngine.Light>();
+            light.type = LightType.Directional;
+            light.color = Color.white;
+            light.intensity = 1.3f;
+            light.shadows = LightShadows.Soft;
+            lightGo.transform.rotation = Quaternion.Euler(50f, -30f, 0f);
+
+            // 2. Main Camera & RunnerCamera
+            GameObject camGo = new GameObject("Main Camera");
+            camGo.tag = "MainCamera";
+            var cam = camGo.AddComponent<UnityEngine.Camera>();
+            cam.clearFlags = CameraClearFlags.Skybox;
+            camGo.AddComponent<AudioListener>();
+            var runnerCam = camGo.AddComponent<GateRunner.Camera.RunnerCamera>();
+
+            // 3. Player
+            GameObject playerGo = GameObject.CreatePrimitive(PrimitiveType.Capsule);
+            playerGo.name = "Player";
+            playerGo.transform.position = new Vector3(0f, 1f, 0f);
+            if (playerGo.TryGetComponent<Renderer>(out var pRen)) pRen.sharedMaterial = playerMat;
+
+            var movement = playerGo.AddComponent<SwerveMovement>();
+            var modifier = playerGo.AddComponent<PlayerModifier>();
+
+            var pSo = new SerializedObject(movement);
             pSo.FindProperty("_runnerData").objectReferenceValue = runnerData;
             pSo.ApplyModifiedPropertiesWithoutUndo();
 
-            // 2. PoolManager
-            var poolManager = FindAnyObjectByType<PoolManager>();
-            if (poolManager == null)
-            {
-                GameObject poolGo = new GameObject("PoolManager");
-                poolManager = poolGo.AddComponent<PoolManager>();
-            }
+            runnerCam.SetTarget(playerGo.transform);
 
+            // 4. PoolManager
+            GameObject poolGo = new GameObject("PoolManager");
+            var poolManager = poolGo.AddComponent<PoolManager>();
             var poolSo = new SerializedObject(poolManager);
             poolSo.FindProperty("_roadSegmentPrefab").objectReferenceValue = roadPrefab;
             poolSo.FindProperty("_gatePairPrefab").objectReferenceValue = gatePairPrefab;
+            poolSo.FindProperty("_coinPrefab").objectReferenceValue = coinPrefab;
             poolSo.ApplyModifiedPropertiesWithoutUndo();
 
-            // 3. LevelGenerator
-            var levelGen = FindAnyObjectByType<LevelGenerator>();
-            if (levelGen == null)
-            {
-                GameObject genGo = new GameObject("LevelGenerator");
-                levelGen = genGo.AddComponent<LevelGenerator>();
-            }
-
+            // 5. LevelGenerator
+            GameObject genGo = new GameObject("LevelGenerator");
+            var levelGen = genGo.AddComponent<LevelGenerator>();
             var genSo = new SerializedObject(levelGen);
-            genSo.FindProperty("_playerTransform").objectReferenceValue = player.transform;
+            genSo.FindProperty("_playerTransform").objectReferenceValue = playerGo.transform;
             genSo.ApplyModifiedPropertiesWithoutUndo();
 
-            // 4. Kamera Konumlandırma (Hypercasual Runner Açısı)
-            Camera mainCam = Camera.main;
-            if (mainCam != null)
-            {
-                mainCam.transform.position = new Vector3(0f, 6.5f, -8.0f);
-                mainCam.transform.rotation = Quaternion.Euler(22.0f, 0f, 0f);
-            }
+            // 6. UI Canvas (Score & Coins)
+            SetupUICanvas();
+
+            // Sahneyi kaydet
+            EditorSceneManager.SaveScene(scene, scenePath);
+        }
+
+        private static void SetupUICanvas()
+        {
+            // Canvas Root
+            GameObject canvasGo = new GameObject("UI_Canvas");
+            var canvas = canvasGo.AddComponent<Canvas>();
+            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+            var scaler = canvasGo.AddComponent<CanvasScaler>();
+            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+            scaler.referenceResolution = new Vector2(1080, 1920);
+            scaler.matchWidthOrHeight = 0.5f;
+            canvasGo.AddComponent<GraphicRaycaster>();
+
+            // Event System
+            GameObject eventSystemGo = new GameObject("EventSystem");
+            eventSystemGo.AddComponent<UnityEngine.EventSystems.EventSystem>();
+            eventSystemGo.AddComponent<InputSystemUIInputModule>();
+
+            // Score Banner Panel
+            GameObject scorePanelGo = new GameObject("Panel_Score");
+            scorePanelGo.transform.SetParent(canvasGo.transform, false);
+            var panelRect = scorePanelGo.AddComponent<RectTransform>();
+            panelRect.anchorMin = new Vector2(0.5f, 1.0f);
+            panelRect.anchorMax = new Vector2(0.5f, 1.0f);
+            panelRect.pivot = new Vector2(0.5f, 1.0f);
+            panelRect.anchoredPosition = new Vector2(0f, -60f);
+            panelRect.sizeDelta = new Vector2(500f, 140f);
+
+            // Skor Metni (TMP)
+            GameObject scoreTextGo = new GameObject("Text_Score");
+            scoreTextGo.transform.SetParent(scorePanelGo.transform, false);
+            var scoreTextRect = scoreTextGo.AddComponent<RectTransform>();
+            scoreTextRect.anchorMin = Vector2.zero;
+            scoreTextRect.anchorMax = Vector2.one;
+            scoreTextRect.sizeDelta = Vector2.zero;
+
+            var tmpScore = scoreTextGo.AddComponent<TextMeshProUGUI>();
+            tmpScore.text = "SKOR: 0";
+            tmpScore.fontSize = 54;
+            tmpScore.fontStyle = FontStyles.Bold;
+            tmpScore.alignment = TextAlignmentOptions.Center;
+            tmpScore.color = new Color(1f, 0.95f, 0.4f);
+
+            // Altın Sayacı (TMP)
+            GameObject coinTextGo = new GameObject("Text_Coin");
+            coinTextGo.transform.SetParent(canvasGo.transform, false);
+            var coinTextRect = coinTextGo.AddComponent<RectTransform>();
+            coinTextRect.anchorMin = new Vector2(1f, 1f);
+            coinTextRect.anchorMax = new Vector2(1f, 1f);
+            coinTextRect.pivot = new Vector2(1f, 1f);
+            coinTextRect.anchoredPosition = new Vector2(-40f, -60f);
+            coinTextRect.sizeDelta = new Vector2(240f, 100f);
+
+            var tmpCoin = coinTextGo.AddComponent<TextMeshProUGUI>();
+            tmpCoin.text = "🪙 0";
+            tmpCoin.fontSize = 48;
+            tmpCoin.fontStyle = FontStyles.Bold;
+            tmpCoin.alignment = TextAlignmentOptions.Right;
+            tmpCoin.color = Color.white;
+
+            // ScoreManager Bağlantısı
+            var scoreManager = canvasGo.AddComponent<ScoreManager>();
+            var sSo = new SerializedObject(scoreManager);
+            sSo.FindProperty("_scoreText").objectReferenceValue = tmpScore;
+            sSo.FindProperty("_coinText").objectReferenceValue = tmpCoin;
+            sSo.ApplyModifiedPropertiesWithoutUndo();
         }
     }
 }

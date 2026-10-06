@@ -1,3 +1,4 @@
+using GateRunner.Collectibles;
 using GateRunner.Gates;
 using GateRunner.Level;
 using Sirenix.OdinInspector;
@@ -7,7 +8,7 @@ using UnityEngine.Pool;
 namespace GateRunner.Pooling
 {
     /// <summary>
-    /// UnityEngine.Pool API'sini kullanarak RoadSegment ve GatePair objelerinin
+    /// UnityEngine.Pool API'sini kullanarak RoadSegment, GatePair ve Coin objelerinin
     /// yüksek performanslı bellek havuzlamasını (Object Pooling) yöneten merkezi sınıf.
     /// Odin Inspector ile canlı havuz durumunu ve yönetim araçlarını sunar.
     /// </summary>
@@ -25,13 +26,18 @@ namespace GateRunner.Pooling
         [AssetsOnly]
         [SerializeField] private GatePair _gatePairPrefab;
 
+        [FoldoutGroup("Prefab Tanımları")]
+        [Required("Coin prefab'i atanmalıdır.")]
+        [AssetsOnly]
+        [SerializeField] private Coin _coinPrefab;
+
         [FoldoutGroup("Havuz Kapasite Ayarları")]
         [MinValue(5), MaxValue(50)]
-        [SerializeField] private int _defaultCapacity = 12;
+        [SerializeField] private int _defaultCapacity = 15;
 
         [FoldoutGroup("Havuz Kapasite Ayarları")]
         [MinValue(10), MaxValue(200)]
-        [SerializeField] private int _maxPoolSize = 60;
+        [SerializeField] private int _maxPoolSize = 80;
 
         [FoldoutGroup("Havuz Kapasite Ayarları")]
         [Tooltip("Aynı objenin iki kez havuza bırakılmasını denetleyen güvenlik kontrolü (Collection Check).")]
@@ -49,13 +55,21 @@ namespace GateRunner.Pooling
 
         [ShowInInspector, ReadOnly, FoldoutGroup("Canlı Havuz İstatistikleri")]
         public int GateInactiveCount => _gatePool?.CountInactive ?? 0;
+
+        [ShowInInspector, ReadOnly, FoldoutGroup("Canlı Havuz İstatistikleri")]
+        public int CoinActiveCount => _coinPool?.CountActive ?? 0;
+
+        [ShowInInspector, ReadOnly, FoldoutGroup("Canlı Havuz İstatistikleri")]
+        public int CoinInactiveCount => _coinPool?.CountInactive ?? 0;
         #endregion
 
         private ObjectPool<RoadSegment> _roadPool;
         private ObjectPool<GatePair> _gatePool;
+        private ObjectPool<Coin> _coinPool;
 
         private Transform _roadContainer;
         private Transform _gateContainer;
+        private Transform _coinContainer;
 
         private void Awake()
         {
@@ -77,11 +91,13 @@ namespace GateRunner.Pooling
 
             _gateContainer = new GameObject("[Pool_GatePairs]").transform;
             _gateContainer.SetParent(transform);
+
+            _coinContainer = new GameObject("[Pool_Coins]").transform;
+            _coinContainer.SetParent(transform);
         }
 
         private void InitializePools()
         {
-            // UnityEngine.Pool.ObjectPool kurulumu (RoadSegment)
             _roadPool = new ObjectPool<RoadSegment>(
                 createFunc: CreateRoadSegment,
                 actionOnGet: OnGetRoadSegment,
@@ -92,7 +108,6 @@ namespace GateRunner.Pooling
                 maxSize: _maxPoolSize
             );
 
-            // UnityEngine.Pool.ObjectPool kurulumu (GatePair)
             _gatePool = new ObjectPool<GatePair>(
                 createFunc: CreateGatePair,
                 actionOnGet: OnGetGatePair,
@@ -102,9 +117,22 @@ namespace GateRunner.Pooling
                 defaultCapacity: _defaultCapacity,
                 maxSize: _maxPoolSize
             );
+
+            if (_coinPrefab != null)
+            {
+                _coinPool = new ObjectPool<Coin>(
+                    createFunc: CreateCoin,
+                    actionOnGet: OnGetCoin,
+                    actionOnRelease: OnReleaseCoin,
+                    actionOnDestroy: OnDestroyPoolItem,
+                    collectionCheck: _collectionCheck,
+                    defaultCapacity: _defaultCapacity * 2,
+                    maxSize: _maxPoolSize * 2
+                );
+            }
         }
 
-        #region RoadSegment Pool Callbacks
+        #region RoadSegment Callbacks
         private RoadSegment CreateRoadSegment()
         {
             RoadSegment segment = Instantiate(_roadSegmentPrefab, _roadContainer);
@@ -120,19 +148,21 @@ namespace GateRunner.Pooling
 
         private void OnReleaseRoadSegment(RoadSegment segment)
         {
-            // Eğer segment üzerinde hala bağlı bir kapı çifti varsa önce kapıyı havuza döndür
             if (segment.AttachedGatePair != null)
             {
                 ReleaseGatePair(segment.AttachedGatePair);
                 segment.DetachGatePair();
             }
 
+            // Segment üzerindeki altınları serbest bırak
+            segment.ReleaseAttachedCoins();
+
             segment.gameObject.SetActive(false);
             segment.transform.SetParent(_roadContainer);
         }
         #endregion
 
-        #region GatePair Pool Callbacks
+        #region GatePair Callbacks
         private GatePair CreateGatePair()
         {
             GatePair pair = Instantiate(_gatePairPrefab, _gateContainer);
@@ -152,6 +182,27 @@ namespace GateRunner.Pooling
             pair.gameObject.SetActive(false);
             pair.transform.SetParent(_gateContainer);
         }
+        #endregion
+
+        #region Coin Callbacks
+        private Coin CreateCoin()
+        {
+            Coin coin = Instantiate(_coinPrefab, _coinContainer);
+            coin.gameObject.SetActive(false);
+            return coin;
+        }
+
+        private void OnGetCoin(Coin coin)
+        {
+            coin.ResetCoin();
+        }
+
+        private void OnReleaseCoin(Coin coin)
+        {
+            coin.gameObject.SetActive(false);
+            coin.transform.SetParent(_coinContainer);
+        }
+        #endregion
 
         private void OnDestroyPoolItem(Component item)
         {
@@ -160,51 +211,53 @@ namespace GateRunner.Pooling
                 Destroy(item.gameObject);
             }
         }
-        #endregion
 
         #region Public API
-        /// <summary>
-        /// Havuzdan bir yol parçası talep eder.
-        /// </summary>
         public RoadSegment GetRoadSegment(Vector3 position, Quaternion rotation)
         {
             if (_roadPool == null) InitializePools();
-
             RoadSegment segment = _roadPool.Get();
             segment.transform.position = position;
             segment.transform.rotation = rotation;
             return segment;
         }
 
-        /// <summary>
-        /// Kullanımı biten yol parçasını havuza iade eder.
-        /// </summary>
         public void ReleaseRoadSegment(RoadSegment segment)
         {
             if (segment == null) return;
             _roadPool.Release(segment);
         }
 
-        /// <summary>
-        /// Havuzdan bir kapı çifti talep eder.
-        /// </summary>
         public GatePair GetGatePair(Vector3 position, Quaternion rotation)
         {
             if (_gatePool == null) InitializePools();
-
             GatePair pair = _gatePool.Get();
             pair.transform.position = position;
             pair.transform.rotation = rotation;
             return pair;
         }
 
-        /// <summary>
-        /// Kullanımı biten kapı çiftini havuza iade eder.
-        /// </summary>
         public void ReleaseGatePair(GatePair pair)
         {
             if (pair == null) return;
             _gatePool.Release(pair);
+        }
+
+        public Coin GetCoin(Vector3 position, Quaternion rotation)
+        {
+            if (_coinPool == null) InitializePools();
+            if (_coinPool == null) return null;
+
+            Coin coin = _coinPool.Get();
+            coin.transform.position = position;
+            coin.transform.rotation = rotation;
+            return coin;
+        }
+
+        public void ReleaseCoin(Coin coin)
+        {
+            if (coin == null || _coinPool == null) return;
+            _coinPool.Release(coin);
         }
         #endregion
 
@@ -235,6 +288,7 @@ namespace GateRunner.Pooling
         {
             _roadPool?.Clear();
             _gatePool?.Clear();
+            _coinPool?.Clear();
         }
         #endregion
     }

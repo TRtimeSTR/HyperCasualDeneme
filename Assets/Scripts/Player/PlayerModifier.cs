@@ -1,4 +1,5 @@
 using System;
+using DG.Tweening;
 using GateRunner.Data;
 using GateRunner.Movement;
 using Sirenix.OdinInspector;
@@ -112,6 +113,43 @@ namespace GateRunner.Player
             RecalculateTargetScale();
             OnScoreChanged?.Invoke(_currentScore);
             OnScaleChanged?.Invoke(_targetScale);
+
+            // DOTween ile Pop-Up / Punch / Shake Animasyonu
+            ApplyDOTweenScaleFeedback(operationType);
+        }
+
+        private void ApplyDOTweenScaleFeedback(GateOperationType operationType)
+        {
+            Transform t = TargetTransform;
+            t.DOKill();
+
+            bool isBuff = operationType == GateOperationType.Add || operationType == GateOperationType.Multiply;
+
+            if (isBuff)
+            {
+                // Tatmin edici OutBack büyüme ve hafif punch efekti
+                t.DOScale(_targetScale, 0.35f)
+                    .SetEase(Ease.OutBack)
+                    .OnComplete(() =>
+                    {
+                        t.DOPunchScale(_targetScale * 0.15f, 0.25f, 6, 0.5f);
+                    });
+            }
+            else
+            {
+                // Küçülme veya cezada DOShakeScale sarsılma efekti
+                t.DOScale(_targetScale, 0.25f)
+                    .SetEase(Ease.OutQuad)
+                    .OnComplete(() =>
+                    {
+                        t.DOShakeScale(0.25f, 0.2f, 8, 90f);
+                    });
+            }
+        }
+
+        private void OnDestroy()
+        {
+            TargetTransform.DOKill();
         }
 
         /// <summary>
@@ -134,12 +172,12 @@ namespace GateRunner.Player
         }
 
         /// <summary>
-        /// Karakterin lokal ölçeğini hedef boyuta doğru pürüzsüzce taşır (Lerp).
+        /// Karakterin lokal ölçeğini hedef boyuta doğru pürüzsüzce taşır (Lerp - DOTween aktif değilken yedek yumuşatma).
         /// </summary>
         private void ApplySmoothScaling()
         {
             Transform t = TargetTransform;
-            if (Vector3.Distance(t.localScale, _targetScale) > 0.001f)
+            if (!DOTween.IsTweening(t) && Vector3.Distance(t.localScale, _targetScale) > 0.001f)
             {
                 t.localScale = Vector3.Lerp(t.localScale, _targetScale, _scaleLerpSpeed * Time.deltaTime);
             }

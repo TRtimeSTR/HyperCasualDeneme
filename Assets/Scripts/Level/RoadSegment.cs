@@ -1,4 +1,7 @@
+using System.Collections.Generic;
+using GateRunner.Collectibles;
 using GateRunner.Gates;
+using GateRunner.Pooling;
 using Sirenix.OdinInspector;
 using UnityEngine;
 
@@ -6,7 +9,7 @@ namespace GateRunner.Level
 {
     /// <summary>
     /// Seviyeyi oluşturan tekil yol modülü (segment).
-    /// Kendi uzunluğunu bilir, kapı ve engel montaj yuvalarını (sockets) barındırır.
+    /// Kendi uzunluğunu bilir, kapı ve toplanabilir altın montaj yuvalarını (sockets) barındırır.
     /// </summary>
     [SelectionBase]
     public class RoadSegment : SerializedMonoBehaviour
@@ -21,6 +24,8 @@ namespace GateRunner.Level
 
         [ShowInInspector, ReadOnly, FoldoutGroup("Bağlı Objeler")]
         public GatePair AttachedGatePair { get; private set; }
+
+        private readonly List<Coin> _attachedCoins = new List<Coin>();
 
         public float Length => _length;
         public Transform GateSocket => _gateSocket != null ? _gateSocket : transform;
@@ -37,6 +42,33 @@ namespace GateRunner.Level
                 gatePair.transform.localPosition = Vector3.zero;
                 gatePair.transform.localRotation = Quaternion.identity;
             }
+        }
+
+        /// <summary>
+        /// Segment üzerine doğan bir altını bağlar.
+        /// </summary>
+        public void AttachCoin(Coin coin)
+        {
+            if (coin != null)
+            {
+                coin.transform.SetParent(transform);
+                _attachedCoins.Add(coin);
+            }
+        }
+
+        /// <summary>
+        /// Segment havuza dönerken üzerinde kalan toplanmamış altınları havuza bırakır.
+        /// </summary>
+        public void ReleaseAttachedCoins()
+        {
+            for (int i = 0; i < _attachedCoins.Count; i++)
+            {
+                if (_attachedCoins[i] != null && _attachedCoins[i].gameObject.activeSelf)
+                {
+                    PoolManager.Instance?.ReleaseCoin(_attachedCoins[i]);
+                }
+            }
+            _attachedCoins.Clear();
         }
 
         /// <summary>
@@ -57,6 +89,7 @@ namespace GateRunner.Level
         public void ResetSegment()
         {
             DetachGatePair();
+            _attachedCoins.Clear();
         }
 
         #region Editor Gizmos

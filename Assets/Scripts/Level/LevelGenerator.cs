@@ -120,9 +120,37 @@ namespace GateRunner.Level
             {
                 SpawnGatePairOnSegment(segment);
             }
+            else
+            {
+                // Kapı olmayan parçalara toplanabilir altın dizileri yerleştir
+                SpawnCoinsOnSegment(segment);
+            }
 
             _activeSegments.Enqueue(segment);
             _nextSpawnZ += segment.Length;
+        }
+
+        private void SpawnCoinsOnSegment(RoadSegment segment)
+        {
+            if (PoolManager.Instance == null) return;
+
+            // Rastgele bir şerit seç: Sol (-2.2), Orta (0), Sağ (+2.2)
+            float[] lanes = { -2.2f, 0f, 2.2f };
+            float chosenLaneX = lanes[Random.Range(0, lanes.Length)];
+
+            int coinCount = 4;
+            float startZ = segment.transform.position.z + 4.0f;
+            float spacing = 3.0f;
+
+            for (int i = 0; i < coinCount; i++)
+            {
+                Vector3 coinPos = new Vector3(chosenLaneX, 0.9f, startZ + (i * spacing));
+                var coin = PoolManager.Instance.GetCoin(coinPos, Quaternion.identity);
+                if (coin != null)
+                {
+                    segment.AttachCoin(coin);
+                }
+            }
         }
 
         private bool ShouldSpawnGateOnSegment(int segmentIndex)
