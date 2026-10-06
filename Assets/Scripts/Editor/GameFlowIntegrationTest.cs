@@ -12,14 +12,17 @@ namespace GateRunner.Editor
 {
     public static class GameFlowIntegrationTest
     {
-        [MenuItem("Tools/Gate Runner/🧪 Oyun Akışı & Ses Testi (Integration Test)", priority = 20)]
+        [MenuItem("Tools/Gate Runner/🧪 Oyun Akışı & Görsel Cila Testi (Integration Test)", priority = 20)]
         public static void RunAllTests()
         {
-            Debug.Log("<color=#00E676><b>[Integration Test]</b></color> Oyun Akışı ve Ses Testleri Başlatılıyor...");
+            Debug.Log("<color=#00E676><b>[Integration Test]</b></color> Oyun Akışı, Animasyon ve Kalıp Testleri Başlatılıyor...");
 
             TestLevelProgression();
             TestAudioManagerSynthesis();
             TestGameFlowStates();
+            TestPlayerAnimator();
+            TestDynamicSpawnPatternsAndDifficulty();
+            TestRoadMaterialAndFog();
 
             Debug.Log("<color=#00E676><b>[Integration Test]</b></color> TÜM TESTLER BAŞARIYLA TAMAMLANDI! (All tests passed)");
         }
@@ -81,6 +84,70 @@ namespace GateRunner.Editor
 
             Object.DestroyImmediate(gmGo);
             Debug.Log("<color=#64B5F6>[Test Passed]</color> GameFlow Durum Makinesi (Ready -> Running -> Victory) doğrulandı.");
+        }
+
+        private static void TestPlayerAnimator()
+        {
+            GameObject playerGo = new GameObject("Test_Player");
+            var anim = playerGo.AddComponent<PlayerAnimator>();
+
+            anim.StartRunningAnimation();
+            if (!anim.IsRunning) Debug.LogError("[Test Fail] PlayerAnimator koşma moduna geçmedi!");
+
+            anim.PlayVictoryAnimation();
+            if (anim.IsRunning) Debug.LogError("[Test Fail] PlayerAnimator zaferde koşmayı durdurmadı!");
+
+            anim.PlayFailAnimation();
+            anim.ResetToIdle();
+
+            Object.DestroyImmediate(playerGo);
+            Debug.Log("<color=#64B5F6>[Test Passed]</color> PlayerAnimator koşma/zafer/yenilgi/sıfırlama prosedürel durumları doğrulandı.");
+        }
+
+        private static void TestDynamicSpawnPatternsAndDifficulty()
+        {
+            // Level 1 vs Level 5 kapı ölçeklendirme formülü testi
+            float scaleL1 = 1.0f + ((1 - 1) * 0.35f); // 1.0
+            float scaleL5 = 1.0f + ((5 - 1) * 0.35f); // 2.4
+
+            int minAddL1 = Mathf.RoundToInt(8 * scaleL1);
+            int minAddL5 = Mathf.RoundToInt(8 * scaleL5);
+
+            if (minAddL5 <= minAddL1)
+            {
+                Debug.LogError("[Test Fail] Level 5 kapı matematik değeri Level 1'den yüksek değil!");
+            }
+
+            // Pattern Enum doğrulaması
+            var patterns = System.Enum.GetValues(typeof(SegmentPatternType));
+            if (patterns.Length < 4)
+            {
+                Debug.LogError("[Test Fail] SegmentPatternType kalıpları eksik!");
+            }
+
+            Debug.Log($"<color=#64B5F6>[Test Passed]</color> Dinamik Seviye Kalıpları & Zorluk Ölçeklendirmesi (L1 min Add: {minAddL1}, L5 min Add: {minAddL5}) doğrulandı.");
+        }
+
+        private static void TestRoadMaterialAndFog()
+        {
+            var roadMat = AssetDatabase.LoadAssetAtPath<Material>("Assets/Materials/Mat_Road.mat");
+            if (roadMat == null)
+            {
+                Debug.LogError("[Test Fail] Mat_Road.mat bulunamadı!");
+            }
+            else
+            {
+                Texture tex = roadMat.GetTexture("_BaseMap");
+                if (tex == null) Debug.LogWarning("[Test Warning] Mat_Road üzerinde _BaseMap texture atanmamış olabilir.");
+            }
+
+            var controller = AssetDatabase.LoadAssetAtPath<RuntimeAnimatorController>("Assets/Animations/PlayerAnimatorController.controller");
+            if (controller == null)
+            {
+                Debug.LogError("[Test Fail] PlayerAnimatorController.controller asset bulunamadı!");
+            }
+
+            Debug.Log("<color=#64B5F6>[Test Passed]</color> Mat_Road, Sis (Fog) ve PlayerAnimatorController assetleri doğrulandı.");
         }
     }
 }

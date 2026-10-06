@@ -391,6 +391,8 @@ GameObject:
   - component: {fileID: 1010000006}
   - component: {fileID: 1010000007}
   - component: {fileID: 1010000008}
+  - component: {fileID: 1010000009}
+  - component: {fileID: 1010000010}
   m_Layer: 0
   m_Name: Player
   m_TagString: Player
@@ -561,6 +563,49 @@ MonoBehaviour:
   _minScale: 0.4
   _maxScale: 4
   _scaleLerpSpeed: 12
+--- !u!95 &1010000009
+Animator:
+  serializedVersion: 7
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1010000000}
+  m_Enabled: 1
+  m_Avatar: {fileID: 0}
+  m_Controller: {fileID: 9100000, guid: a4b5c6d7e8f90123456789abcdef0123, type: 2}
+  m_CullingMode: 0
+  m_UpdateMode: 0
+  m_ApplyRootMotion: 0
+  m_LinearVelocityBlending: 0
+  m_StabilizeFeet: 0
+  m_AnimatePhysics: 0
+  m_WarningMessage: 
+  m_HasTransformHierarchy: 1
+  m_AllowConstantClipSamplingOptimization: 1
+  m_KeepAnimatorStateOnDisable: 0
+  m_WriteDefaultValuesOnDisable: 0
+--- !u!114 &1010000010
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1010000000}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  _animator: {fileID: 1010000009}
+  _isRunningParam: IsRunning
+  _triggerWinParam: TriggerWin
+  _triggerFailParam: TriggerFail
+  _visualModel: {fileID: 1010000001}
+  _enableProceduralWobble: 1
+  _stepDuration: 0.2
+  _hopHeight: 0.06
+  _rollWobbleAngle: 3.5
 --- !u!1 &1020000000
 GameObject:
   m_ObjectHideFlags: 0
@@ -618,6 +663,7 @@ GameObject:
   m_Component:
   - component: {fileID: 1030000001}
   - component: {fileID: 1030000002}
+  - component: {fileID: 1030000003}
   m_Layer: 0
   m_Name: LevelGenerator
   m_TagString: Untagged
@@ -658,8 +704,23 @@ MonoBehaviour:
   _recycleDistanceBehind: 25
   _isEndlessMode: 0
   _totalLevelSegments: 16
-  _firstGateSegmentIndex: 2
-  _gateSegmentInterval: 2
+  _gateValueScalePerLevel: 0.35
+  _hazardChanceScalePerLevel: 0.12
+--- !u!114 &1030000003
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1030000000}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  _roadMaterial: {fileID: 2100000, guid: 5c94d4e52ff94894bd0c03067d8bdf1c, type: 2}
+  _player: {fileID: 1010000007}
+  _scrollMultiplier: 0.05
 --- !u!1 &1040000000
 GameObject:
   m_ObjectHideFlags: 0

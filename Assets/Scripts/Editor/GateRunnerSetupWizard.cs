@@ -429,9 +429,18 @@ namespace GateRunner.Editor
             GameObject camGo = new GameObject("Main Camera");
             camGo.tag = "MainCamera";
             var cam = camGo.AddComponent<UnityEngine.Camera>();
-            cam.clearFlags = CameraClearFlags.Skybox;
+            Color skyFogColor = new Color(0.19f, 0.30f, 0.47f, 1.0f);
+            cam.clearFlags = CameraClearFlags.SolidColor;
+            cam.backgroundColor = skyFogColor;
             camGo.AddComponent<AudioListener>();
             var runnerCam = camGo.AddComponent<RunnerCamera>();
+
+            // Linear Fog (RenderSettings)
+            RenderSettings.fog = true;
+            RenderSettings.fogMode = FogMode.Linear;
+            RenderSettings.fogColor = skyFogColor;
+            RenderSettings.fogStartDistance = 25.0f;
+            RenderSettings.fogEndDistance = 85.0f;
 
             // 3. Player
             GameObject playerGo = GameObject.CreatePrimitive(PrimitiveType.Capsule);
@@ -441,6 +450,12 @@ namespace GateRunner.Editor
 
             var movement = playerGo.AddComponent<SwerveMovement>();
             var modifier = playerGo.AddComponent<PlayerModifier>();
+
+            var anim = playerGo.AddComponent<Animator>();
+            var animController = AssetDatabase.LoadAssetAtPath<RuntimeAnimatorController>("Assets/Animations/PlayerAnimatorController.controller");
+            if (animController != null) anim.runtimeAnimatorController = animController;
+
+            var playerAnim = playerGo.AddComponent<PlayerAnimator>();
 
             var pSo = new SerializedObject(movement);
             pSo.FindProperty("_runnerData").objectReferenceValue = runnerData;
@@ -458,7 +473,7 @@ namespace GateRunner.Editor
             poolSo.FindProperty("_obstaclePrefab").objectReferenceValue = obstaclePrefab;
             poolSo.ApplyModifiedPropertiesWithoutUndo();
 
-            // 5. LevelGenerator
+            // 5. LevelGenerator & RoadMaterialScroller
             GameObject genGo = new GameObject("LevelGenerator");
             var levelGen = genGo.AddComponent<LevelGenerator>();
             var genSo = new SerializedObject(levelGen);
@@ -466,6 +481,13 @@ namespace GateRunner.Editor
             genSo.FindProperty("_finishLinePrefab").objectReferenceValue = finishLinePrefab;
             genSo.FindProperty("_totalLevelSegments").intValue = 16;
             genSo.ApplyModifiedPropertiesWithoutUndo();
+
+            var scroller = genGo.AddComponent<RoadMaterialScroller>();
+            var scrollerSo = new SerializedObject(scroller);
+            var roadMat = AssetDatabase.LoadAssetAtPath<Material>("Assets/Materials/Mat_Road.mat");
+            scrollerSo.FindProperty("_roadMaterial").objectReferenceValue = roadMat;
+            scrollerSo.FindProperty("_player").objectReferenceValue = movement;
+            scrollerSo.ApplyModifiedPropertiesWithoutUndo();
 
             // 6. AudioManager
             GameObject audioGo = new GameObject("AudioManager");

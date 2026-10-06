@@ -11,9 +11,31 @@ using UnityEngine;
 namespace GateRunner.Level
 {
     /// <summary>
+    /// Yol parçalarının içereceği içerik kalıpları (Pattern).
+    /// </summary>
+    public enum SegmentPatternType
+    {
+        [InspectorName("Boş Güvenli Segment (Empty Safe)")]
+        EmptyStart,
+
+        [InspectorName("Seçim Kapısı (Gate Choice: 1 Buff, 1 Debuff)")]
+        GateChoice,
+
+        [InspectorName("Engel Tuzağı (Obstacle Hazard: Spikes)")]
+        ObstacleHazard,
+
+        [InspectorName("Ödül Şeridi (Coin Reward: Coin Line)")]
+        CoinReward,
+
+        [InspectorName("Karma Kalıp (Mixed: Obstacles + Coins)")]
+        MixedHazardReward
+    }
+
+    /// <summary>
     /// Karakter ilerledikçe dinamik olarak yeni yol parçaları, matematiksel kapılar,
     /// toplanabilir altınlar ve tehlikeli dikenler üreten seviye üreticisi.
     /// Belirlenen segment sayısına ulaşıldığında bitiş çizgisini (FinishLine) doğurur.
+    /// Dinamik kalıp (Pattern) sistemi ve seviye bazlı zorluk ölçeklendirmesi (Difficulty Scaling) içerir.
     /// </summary>
     public class LevelGenerator : SerializedMonoBehaviour
     {
@@ -47,13 +69,25 @@ namespace GateRunner.Level
         [SerializeField, HideIf(nameof(_isEndlessMode))]
         private FinishLine _finishLinePrefab;
 
-        [TabGroup("GeneratorTabs", "Kapı Ayarları (Gates)", SdfIconType.DoorOpen)]
-        [Tooltip("İlk kapı çifti kaçıncı yol parçasından itibaren çıkmaya başlasın?")]
-        [SerializeField, MinValue(1)] private int _firstGateSegmentIndex = 2;
+        [TabGroup("GeneratorTabs", "Kalıp Dizilimi (Patterns)", SdfIconType.Grid3x3GapFill)]
+        [Tooltip("Yol parçalarının takip edeceği dinamik pattern sırası.")]
+        [SerializeField]
+        private List<SegmentPatternType> _patternSequence = new List<SegmentPatternType>
+        {
+            SegmentPatternType.GateChoice,
+            SegmentPatternType.CoinReward,
+            SegmentPatternType.ObstacleHazard,
+            SegmentPatternType.GateChoice,
+            SegmentPatternType.MixedHazardReward
+        };
 
-        [TabGroup("GeneratorTabs", "Kapı Ayarları (Gates)")]
-        [Tooltip("Kaç yol parçasında bir kapı çifti doğurulsun? (Örn: 2 = her 2 parçada bir)")]
-        [SerializeField, MinValue(1)] private int _gateSegmentInterval = 2;
+        [TabGroup("GeneratorTabs", "Zorluk Ölçeklendirmesi (Difficulty)", SdfIconType.GraphUp)]
+        [Tooltip("Bölüm başına matematik kapısı değer artış katsayısı.")]
+        [SerializeField, Range(0.1f, 1.0f)] private float _gateValueScalePerLevel = 0.35f;
+
+        [TabGroup("GeneratorTabs", "Zorluk Ölçeklendirmesi (Difficulty)")]
+        [Tooltip("Bölüm başına ek diken engeli doğma olasılığı artışı.")]
+        [SerializeField, Range(0.05f, 0.35f)] private float _hazardChanceScalePerLevel = 0.12f;
 
         #region Live Stats (Odin)
         [ShowInInspector, ReadOnly, FoldoutGroup("Canlı İstatistikler")]
@@ -147,18 +181,53 @@ namespace GateRunner.Level
             {
                 SpawnFinishLineOnSegment(segment);
             }
-            else if (ShouldSpawnGateOnSegment(_totalSegmentsSpawned))
-            {
-                SpawnGatePairOnSegment(segment);
-            }
             else if (_totalSegmentsSpawned > 1 && (!_finishSpawned || _totalSegmentsSpawned < _totalLevelSegments))
             {
-                // Engel ve altın yerleşimi: Oyuncuyu yönlendiren klasik hypercasual düzen
-                SpawnObstaclesAndCoinsOnSegment(segment);
+                // Kalıp (Pattern) tabanlı dinamik yol üretimi
+                DispatchSegmentPattern(segment);
             }
 
             _activeSegments.Enqueue(segment);
             _nextSpawnZ += segment.Length;
+        }
+
+        private void DispatchSegmentPattern(RoadSegment segment)
+        {
+            if (_patternSequence == null || _patternSequence.Count == 0)
+            {
+                SpawnGatePairOnSegment(segment);
+                return;
+            }
+
+            int patternIndex = (_totalSegmentsSpawned - 2) % _patternSequence.Count;
+            SegmentPatternType pattern = _patternSequence[patternIndex];
+
+            int currentLevel = Managers.GameManager.Instance != null ? Managers.GameManager.Instance.CurrentLevel : 1;
+            float difficultyScale = 1.0f + ((currentLevel - 1) * _gateValueScalePerLevel);
+
+            switch (pattern)
+            {
+                case SegmentPatternType.GateChoice:
+                    SpawnGatePairOnSegment(segment);
+                    break;
+
+                case SegmentPatternType.ObstacleHazard:
+                    SpawnObstacleHazard(segment, difficultyScale);
+                    break;
+
+                case SegmentPatternType.CoinReward:
+                    SpawnCoinReward(segment);
+                    break;
+
+                case SegmentPatternType.MixedHazardReward:
+                    SpawnMixedHazardReward(segment, difficultyScale);
+                    break;
+
+                case SegmentPatternType.EmptyStart:
+                default:
+                    // Güvenli boş geçiş segmenti
+                    break;
+            }
         }
 
         private void SpawnFinishLineOnSegment(RoadSegment segment)
@@ -172,40 +241,123 @@ namespace GateRunner.Level
             }
         }
 
-        private void SpawnObstaclesAndCoinsOnSegment(RoadSegment segment)
+        /// <summary>
+        /// Seçim Segmenti: Yan yana iki kapı üretir. Biri KESİNLİKLE pozitif (Buff), diğeri KESİNLİKLE negatif (Debuff)'tır.
+        /// </summary>
+        private void SpawnGatePairOnSegment(RoadSegment segment)
+        {
+            GatePair gatePair = PoolManager.Instance.GetGatePair(Vector3.zero, Quaternion.identity);
+
+            GenerateBalancedGatePairData(out GateData leftData, out GateData rightData);
+            gatePair.Configure(leftData, rightData);
+
+            segment.AttachGatePair(gatePair);
+        }
+
+        /// <summary>
+        /// Kesinlikle 1 Pozitif (Buff) ve 1 Negatif (Debuff) matematiksel kapı üretir.
+        /// Zorluk derecesi arttıkça kapı değerleri dinamik olarak artar.
+        /// </summary>
+        private void GenerateBalancedGatePairData(out GateData leftData, out GateData rightData)
+        {
+            int currentLevel = Managers.GameManager.Instance != null ? Managers.GameManager.Instance.CurrentLevel : 1;
+            float difficultyScale = 1.0f + ((currentLevel - 1) * _gateValueScalePerLevel);
+
+            // 1. KESİNLİKLE Pozitif (Buff: Add veya Multiply)
+            GateData buffData;
+            bool isBuffMultiply = currentLevel >= 2 && Random.value < 0.35f;
+            if (isBuffMultiply)
+            {
+                int multiplier = currentLevel >= 4 && Random.value < 0.35f ? 3 : 2;
+                buffData = new GateData(GateOperationType.Multiply, multiplier);
+            }
+            else
+            {
+                int minAdd = Mathf.RoundToInt(8 * difficultyScale);
+                int maxAdd = Mathf.RoundToInt(18 * difficultyScale);
+                buffData = new GateData(GateOperationType.Add, Random.Range(minAdd, maxAdd + 1));
+            }
+
+            // 2. KESİNLİKLE Negatif (Debuff: Subtract veya Divide)
+            GateData debuffData;
+            bool isDebuffDivide = currentLevel >= 3 && Random.value < 0.30f;
+            if (isDebuffDivide)
+            {
+                int divisor = currentLevel >= 5 && Random.value < 0.25f ? 3 : 2;
+                debuffData = new GateData(GateOperationType.Divide, divisor);
+            }
+            else
+            {
+                int minSub = Mathf.RoundToInt(4 * difficultyScale);
+                int maxSub = Mathf.RoundToInt(10 * difficultyScale);
+                debuffData = new GateData(GateOperationType.Subtract, Random.Range(minSub, maxSub + 1));
+            }
+
+            // 3. Rastgele Sol / Sağ Dağılımı (%50 / %50)
+            if (Random.value < 0.5f)
+            {
+                leftData = buffData;
+                rightData = debuffData;
+            }
+            else
+            {
+                leftData = debuffData;
+                rightData = buffData;
+            }
+        }
+
+        /// <summary>
+        /// Engel Segmenti: Farklı şeritlere yerleştirilmiş diken tuzakları üretir.
+        /// Seviye arttıkça ikinci bir engel çıkma olasılığı yükselir, ancak en az bir şerit her zaman açık kalır.
+        /// </summary>
+        private void SpawnObstacleHazard(RoadSegment segment, float difficultyScale)
         {
             if (PoolManager.Instance == null) return;
 
             float[] lanes = { -2.2f, 0f, 2.2f };
-            int spikeLaneIndex = Random.Range(0, lanes.Length);
-            float spikeLaneX = lanes[spikeLaneIndex];
-
-            // 1. Diken / Engel yerleştir (Seviye 2+'de ek engel sıklığı)
             float segmentStartZ = segment.transform.position.z;
-            Obstacle obs = PoolManager.Instance.GetObstacle(new Vector3(spikeLaneX, 0f, segmentStartZ + 8f), Quaternion.identity);
+
+            // 1. Ana Diken Engeli
+            int spikeLaneIndex = Random.Range(0, lanes.Length);
+            Obstacle obs = PoolManager.Instance.GetObstacle(new Vector3(lanes[spikeLaneIndex], 0f, segmentStartZ + 8.0f), Quaternion.identity);
             if (obs != null)
             {
                 segment.AttachObstacle(obs);
             }
 
+            // 2. İkinci Diken Engeli (Kademeli zorluk)
             int currentLevel = Managers.GameManager.Instance != null ? Managers.GameManager.Instance.CurrentLevel : 1;
-            if (currentLevel >= 2 && Random.value < 0.45f)
+            float secondSpikeChance = Mathf.Clamp01(0.30f + ((currentLevel - 1) * _hazardChanceScalePerLevel));
+
+            if (currentLevel >= 2 && Random.value < secondSpikeChance)
             {
-                int secondSpikeLane = (spikeLaneIndex + 1) % lanes.Length;
+                // Kalan 2 şeritten birini seç (En az bir şerit kesinlikle açık kalır)
+                int offset = Random.value < 0.5f ? 1 : 2;
+                int secondSpikeLane = (spikeLaneIndex + offset) % lanes.Length;
+
                 Obstacle secondObs = PoolManager.Instance.GetObstacle(new Vector3(lanes[secondSpikeLane], 0f, segmentStartZ + 13.5f), Quaternion.identity);
                 if (secondObs != null)
                 {
                     segment.AttachObstacle(secondObs);
                 }
             }
+        }
 
-            // 2. Güvenli şeritlerden birine altın dizisi yerleştir (Ödül & Yönlendirme)
-            int coinLaneIndex = (spikeLaneIndex + Random.Range(1, 3)) % lanes.Length;
+        /// <summary>
+        /// Ödül Segmenti: Oyuncuyu yönlendirecek şekilde düzgün sıralanmış altın dizisi üretir.
+        /// </summary>
+        private void SpawnCoinReward(RoadSegment segment)
+        {
+            if (PoolManager.Instance == null) return;
+
+            float[] lanes = { -2.2f, 0f, 2.2f };
+            int coinLaneIndex = Random.Range(0, lanes.Length);
             float coinLaneX = lanes[coinLaneIndex];
+            float segmentStartZ = segment.transform.position.z;
 
-            int coinCount = 3;
-            float startZ = segmentStartZ + 4.0f;
-            float spacing = 3.0f;
+            int coinCount = 4;
+            float startZ = segmentStartZ + 4.5f;
+            float spacing = 2.8f;
 
             for (int i = 0; i < coinCount; i++)
             {
@@ -218,44 +370,34 @@ namespace GateRunner.Level
             }
         }
 
-        private bool ShouldSpawnGateOnSegment(int segmentIndex)
+        /// <summary>
+        /// Karma Kalıp: Hem bir şeritte diken engeli hem de güvenli şeride yönlendiren altın dizisi barındırır.
+        /// </summary>
+        private void SpawnMixedHazardReward(RoadSegment segment, float difficultyScale)
         {
-            if (segmentIndex < _firstGateSegmentIndex) return false;
-            if (!_isEndlessMode && segmentIndex >= _totalLevelSegments - 1) return false;
-            return (segmentIndex - _firstGateSegmentIndex) % _gateSegmentInterval == 0;
-        }
+            if (PoolManager.Instance == null) return;
 
-        private void SpawnGatePairOnSegment(RoadSegment segment)
-        {
-            GatePair gatePair = PoolManager.Instance.GetGatePair(Vector3.zero, Quaternion.identity);
+            float[] lanes = { -2.2f, 0f, 2.2f };
+            float segmentStartZ = segment.transform.position.z;
 
-            GenerateBalancedGatePairData(out GateData leftData, out GateData rightData);
-            gatePair.Configure(leftData, rightData);
-
-            segment.AttachGatePair(gatePair);
-        }
-
-        private void GenerateBalancedGatePairData(out GateData leftData, out GateData rightData)
-        {
-            int scenario = Random.Range(0, 3);
-
-            switch (scenario)
+            int spikeLaneIndex = Random.Range(0, lanes.Length);
+            Obstacle obs = PoolManager.Instance.GetObstacle(new Vector3(lanes[spikeLaneIndex], 0f, segmentStartZ + 9.0f), Quaternion.identity);
+            if (obs != null)
             {
-                case 0:
-                    leftData = new GateData(GateOperationType.Add, Random.Range(10, 35));
-                    rightData = new GateData(GateOperationType.Multiply, Random.Range(2, 4));
-                    break;
+                segment.AttachObstacle(obs);
+            }
 
-                case 1:
-                    leftData = new GateData(GateOperationType.Add, Random.Range(15, 30));
-                    rightData = new GateData(GateOperationType.Subtract, Random.Range(5, 15));
-                    break;
+            int safeLaneIndex = (spikeLaneIndex + 1) % lanes.Length;
+            float safeX = lanes[safeLaneIndex];
 
-                case 2:
-                default:
-                    leftData = new GateData(GateOperationType.Multiply, Random.Range(2, 3));
-                    rightData = new GateData(GateOperationType.Divide, 2);
-                    break;
+            for (int i = 0; i < 3; i++)
+            {
+                Vector3 coinPos = new Vector3(safeX, 0.9f, segmentStartZ + 5.0f + (i * 3.0f));
+                Coin coin = PoolManager.Instance.GetCoin(coinPos, Quaternion.identity);
+                if (coin != null)
+                {
+                    segment.AttachCoin(coin);
+                }
             }
         }
 
