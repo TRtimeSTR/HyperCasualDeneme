@@ -16,7 +16,7 @@ namespace GateRunner.Camera
         [SerializeField] private Transform _target;
 
         [Tooltip("Kameranın oyuncuya göre konumsal mesafesi (X, Y, Z).")]
-        [SerializeField] private Vector3 _offset = new Vector3(0f, 6.5f, -8.0f);
+        [SerializeField] private Vector3 _offset = new Vector3(0f, 5.0f, -6.6f);
 
         [FoldoutGroup("Kamera Yumuşatma & Açı")]
         [Tooltip("İleri takip pürüzsüzlük hızı.")]
@@ -24,11 +24,11 @@ namespace GateRunner.Camera
 
         [FoldoutGroup("Kamera Yumuşatma & Açı")]
         [Tooltip("Yatay (swerve) hareketlerde kameranın gecikme/sönümleme hızı. Düşük = daha sakin kamera.")]
-        [SerializeField, Range(1f, 20f)] private float _horizontalFollowSpeed = 6.0f;
+        [SerializeField, Range(1f, 20f)] private float _horizontalFollowSpeed = 7.0f;
 
         [FoldoutGroup("Kamera Yumuşatma & Açı")]
         [Tooltip("Kameranın aşağıya bakış açısı (derece).")]
-        [SerializeField, Range(5f, 45f)] private float _pitchAngle = 22.0f;
+        [SerializeField, Range(5f, 45f)] private float _pitchAngle = 19.5f;
 
         private float _currentX;
 

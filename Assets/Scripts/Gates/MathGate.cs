@@ -40,12 +40,12 @@ namespace GateRunner.Gates
         [FoldoutGroup("Renk Teması (Odin Otomatik Renklendirme)")]
         [Tooltip("Pozitif işlemde (Buff) kullanılacak canlı mavi/yeşil tema.")]
         [OnValueChanged(nameof(UpdateVisuals))]
-        [SerializeField] private Color _buffColor = new Color(0.12f, 0.65f, 1.0f, 0.85f);
+        [SerializeField] private Color _buffColor = new Color(0.12f, 0.72f, 1.0f, 0.48f);
 
         [FoldoutGroup("Renk Teması (Odin Otomatik Renklendirme)")]
         [Tooltip("Negatif işlemde (Debuff) kullanılacak kırmızı tema.")]
         [OnValueChanged(nameof(UpdateVisuals))]
-        [SerializeField] private Color _debuffColor = new Color(1.0f, 0.22f, 0.22f, 0.85f);
+        [SerializeField] private Color _debuffColor = new Color(1.0f, 0.22f, 0.26f, 0.50f);
 
         [FoldoutGroup("Fizik & Tetikleyici")]
         [SerializeField] private Collider _triggerCollider;

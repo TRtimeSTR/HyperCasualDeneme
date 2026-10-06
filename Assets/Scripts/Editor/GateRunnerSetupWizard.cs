@@ -67,7 +67,7 @@ namespace GateRunner.Editor
 
             // 3. Oyun Objeleri Prefableri
             RoadSegment roadPrefab = CreateRoadSegmentPrefab(materials.roadMat);
-            GatePair gatePairPrefab = CreateGatePairPrefab(materials.buffMat, materials.debuffMat);
+            GatePair gatePairPrefab = CreateGatePairPrefab(materials.buffMat, materials.debuffMat, materials.finishMat);
             Coin coinPrefab = CreateCoinPrefab(materials.coinMat);
             Obstacle obstaclePrefab = CreateObstaclePrefab(materials.spikeMat, spikeVfxPrefab);
             FinishLine finishLinePrefab = CreateFinishLinePrefab(materials.finishMat, confettiVfxPrefab);
@@ -118,13 +118,13 @@ namespace GateRunner.Editor
 
             return new MaterialSet
             {
-                roadMat = GetOrCreateMaterial("Assets/Materials/Mat_Road.mat", urpShader, new Color(0.18f, 0.2f, 0.25f)),
-                buffMat = GetOrCreateMaterial("Assets/Materials/Mat_GateBuff.mat", urpShader, new Color(0.12f, 0.65f, 1.0f, 0.85f)),
-                debuffMat = GetOrCreateMaterial("Assets/Materials/Mat_GateDebuff.mat", urpShader, new Color(1.0f, 0.25f, 0.25f, 0.85f)),
-                playerMat = GetOrCreateMaterial("Assets/Materials/Mat_Player.mat", urpShader, new Color(1.0f, 0.5f, 0.05f)),
+                roadMat = GetOrCreateMaterial("Assets/Materials/Mat_Road.mat", urpShader, Color.white),
+                buffMat = GetOrCreateMaterial("Assets/Materials/Mat_GateBuff.mat", urpShader, new Color(0.12f, 0.72f, 1.0f, 0.48f)),
+                debuffMat = GetOrCreateMaterial("Assets/Materials/Mat_GateDebuff.mat", urpShader, new Color(1.0f, 0.22f, 0.26f, 0.50f)),
+                playerMat = GetOrCreateMaterial("Assets/Materials/Mat_Player.mat", urpShader, new Color(1.0f, 0.55f, 0.05f)),
                 coinMat = GetOrCreateMaterial("Assets/Materials/Mat_CoinGold.mat", urpShader, new Color(1.0f, 0.82f, 0.1f)),
                 spikeMat = GetOrCreateMaterial("Assets/Materials/Mat_SpikeRed.mat", urpShader, new Color(0.95f, 0.15f, 0.15f)),
-                finishMat = GetOrCreateMaterial("Assets/Materials/Mat_FinishGold.mat", urpShader, new Color(0.95f, 0.75f, 0.15f))
+                finishMat = GetOrCreateMaterial("Assets/Materials/Mat_FinishGold.mat", urpShader, Color.white)
             };
         }
 
@@ -188,15 +188,15 @@ namespace GateRunner.Editor
             GameObject leftBorder = GameObject.CreatePrimitive(PrimitiveType.Cube);
             leftBorder.name = "Border_Left";
             leftBorder.transform.SetParent(root.transform);
-            leftBorder.transform.localPosition = new Vector3(-4.6f, 0.2f, 10.0f);
-            leftBorder.transform.localScale = new Vector3(0.3f, 0.5f, 20.0f);
+            leftBorder.transform.localPosition = new Vector3(-4.55f, 0.2f, 10.0f);
+            leftBorder.transform.localScale = new Vector3(0.2f, 0.4f, 20.0f);
             if (leftBorder.TryGetComponent<Renderer>(out var lRen)) lRen.sharedMaterial = roadMat;
 
             GameObject rightBorder = GameObject.CreatePrimitive(PrimitiveType.Cube);
             rightBorder.name = "Border_Right";
             rightBorder.transform.SetParent(root.transform);
-            rightBorder.transform.localPosition = new Vector3(4.6f, 0.2f, 10.0f);
-            rightBorder.transform.localScale = new Vector3(0.3f, 0.5f, 20.0f);
+            rightBorder.transform.localPosition = new Vector3(4.55f, 0.2f, 10.0f);
+            rightBorder.transform.localScale = new Vector3(0.2f, 0.4f, 20.0f);
             if (rightBorder.TryGetComponent<Renderer>(out var rRen)) rRen.sharedMaterial = roadMat;
 
             // Soket
@@ -214,15 +214,15 @@ namespace GateRunner.Editor
             return prefab.GetComponent<RoadSegment>();
         }
 
-        private static GatePair CreateGatePairPrefab(Material buffMat, Material debuffMat)
+        private static GatePair CreateGatePairPrefab(Material buffMat, Material debuffMat, Material frameMat)
         {
             const string prefabPath = "Assets/Prefabs/GatePair.prefab";
 
             GameObject root = new GameObject("GatePair");
             var gatePair = root.AddComponent<GatePair>();
 
-            Gate leftGate = CreateSingleGate("Gate_Left", root.transform, new Vector3(-2.2f, 1.25f, 0f), buffMat);
-            Gate rightGate = CreateSingleGate("Gate_Right", root.transform, new Vector3(2.2f, 1.25f, 0f), buffMat);
+            Gate leftGate = CreateSingleGate("Gate_Left", root.transform, new Vector3(-2.15f, 0f, 0f), buffMat, frameMat);
+            Gate rightGate = CreateSingleGate("Gate_Right", root.transform, new Vector3(2.15f, 0f, 0f), debuffMat, frameMat);
 
             var so = new SerializedObject(gatePair);
             so.FindProperty("_leftGate").objectReferenceValue = leftGate;
@@ -234,44 +234,83 @@ namespace GateRunner.Editor
             return prefab.GetComponent<GatePair>();
         }
 
-        private static Gate CreateSingleGate(string name, Transform parent, Vector3 localPos, Material mat)
+        private static Gate CreateSingleGate(string name, Transform parent, Vector3 localPos, Material glassMat, Material frameMat)
         {
-            GameObject gateGo = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            gateGo.name = name;
+            GameObject gateGo = new GameObject(name);
             gateGo.transform.SetParent(parent);
             gateGo.transform.localPosition = localPos;
-            gateGo.transform.localScale = new Vector3(3.8f, 2.5f, 0.2f);
+            gateGo.transform.localScale = Vector3.one;
 
-            var col = gateGo.GetComponent<BoxCollider>();
+            var col = gateGo.AddComponent<BoxCollider>();
             col.isTrigger = true;
-            col.size = new Vector3(1f, 1f, 3.5f);
+            col.center = new Vector3(0f, 1.7f, 0f);
+            col.size = new Vector3(3.9f, 3.4f, 2.5f);
 
-            var renderer = gateGo.GetComponent<Renderer>();
-            renderer.sharedMaterial = mat;
+            // 1. Yarı Saydam Cam Panel (Translucent Glass Pane)
+            GameObject glassPanel = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            glassPanel.name = "Glass_Panel";
+            glassPanel.transform.SetParent(gateGo.transform);
+            glassPanel.transform.localPosition = new Vector3(0f, 1.7f, 0f);
+            glassPanel.transform.localScale = new Vector3(3.9f, 3.4f, 0.08f);
+            DestroyImmediate(glassPanel.GetComponent<Collider>());
+            var glassRenderer = glassPanel.GetComponent<Renderer>();
+            glassRenderer.sharedMaterial = glassMat;
 
+            // 2. Çerçeve Direkleri (Pillars & Borders)
+            GameObject leftPost = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            leftPost.name = "Frame_Left";
+            leftPost.transform.SetParent(gateGo.transform);
+            leftPost.transform.localPosition = new Vector3(-1.95f, 1.7f, 0f);
+            leftPost.transform.localScale = new Vector3(0.12f, 3.45f, 0.14f);
+            DestroyImmediate(leftPost.GetComponent<Collider>());
+            if (leftPost.TryGetComponent<Renderer>(out var lRen)) lRen.sharedMaterial = frameMat;
+
+            GameObject rightPost = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            rightPost.name = "Frame_Right";
+            rightPost.transform.SetParent(gateGo.transform);
+            rightPost.transform.localPosition = new Vector3(1.95f, 1.7f, 0f);
+            rightPost.transform.localScale = new Vector3(0.12f, 3.45f, 0.14f);
+            DestroyImmediate(rightPost.GetComponent<Collider>());
+            if (rightPost.TryGetComponent<Renderer>(out var rRen)) rRen.sharedMaterial = frameMat;
+
+            GameObject topBar = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            topBar.name = "Frame_Top";
+            topBar.transform.SetParent(gateGo.transform);
+            topBar.transform.localPosition = new Vector3(0f, 3.42f, 0f);
+            topBar.transform.localScale = new Vector3(4.02f, 0.14f, 0.14f);
+            DestroyImmediate(topBar.GetComponent<Collider>());
+            if (topBar.TryGetComponent<Renderer>(out var tRen)) tRen.sharedMaterial = frameMat;
+
+            // 3. Kocaman, Okunabilir Değer Metni (TMP)
             GameObject textGo = new GameObject("Text_Value");
             textGo.transform.SetParent(gateGo.transform);
-            textGo.transform.localPosition = new Vector3(0f, 0f, -0.6f);
-            textGo.transform.localScale = Vector3.one * 0.15f;
+            textGo.transform.localPosition = new Vector3(0f, 1.6f, -0.06f);
 
             var tmp = textGo.AddComponent<TextMeshPro>();
-            tmp.text = "+10";
-            tmp.fontSize = 24;
+            tmp.text = "+25";
+            tmp.fontSize = 18f;
+            tmp.fontStyle = FontStyles.Bold;
             tmp.alignment = TextAlignmentOptions.Center;
             tmp.color = Color.white;
+            tmp.rectTransform.sizeDelta = new Vector2(3.6f, 2.2f);
 
+            // 4. Gate & MathGate Bileşenleri
             var gate = gateGo.AddComponent<Gate>();
             var so = new SerializedObject(gate);
             so.FindProperty("_textMesh").objectReferenceValue = tmp;
-            so.FindProperty("_gateRenderer").objectReferenceValue = renderer;
+            so.FindProperty("_gateRenderer").objectReferenceValue = glassRenderer;
             so.FindProperty("_triggerCollider").objectReferenceValue = col;
+            so.FindProperty("_buffColor").colorValue = new Color(0.12f, 0.72f, 1.0f, 0.48f);
+            so.FindProperty("_debuffColor").colorValue = new Color(1.0f, 0.22f, 0.26f, 0.50f);
             so.ApplyModifiedPropertiesWithoutUndo();
 
             var mathGate = gateGo.AddComponent<MathGate>();
             var mSo = new SerializedObject(mathGate);
             mSo.FindProperty("_textMesh").objectReferenceValue = tmp;
-            mSo.FindProperty("_gateRenderer").objectReferenceValue = renderer;
+            mSo.FindProperty("_gateRenderer").objectReferenceValue = glassRenderer;
             mSo.FindProperty("_triggerCollider").objectReferenceValue = col;
+            mSo.FindProperty("_buffColor").colorValue = new Color(0.12f, 0.72f, 1.0f, 0.48f);
+            mSo.FindProperty("_debuffColor").colorValue = new Color(1.0f, 0.22f, 0.26f, 0.50f);
             mSo.ApplyModifiedPropertiesWithoutUndo();
 
             return gate;
@@ -420,18 +459,20 @@ namespace GateRunner.Editor
             GameObject lightGo = new GameObject("Directional Light");
             var light = lightGo.AddComponent<UnityEngine.Light>();
             light.type = LightType.Directional;
-            light.color = new Color(1.0f, 0.98f, 0.95f);
-            light.intensity = 1.35f;
+            light.color = new Color(1.0f, 0.97f, 0.92f);
+            light.intensity = 1.25f;
             light.shadows = LightShadows.Soft;
-            lightGo.transform.rotation = Quaternion.Euler(50f, -30f, 0f);
+            light.shadowStrength = 0.58f;
+            lightGo.transform.rotation = Quaternion.Euler(48f, -35f, 0f);
 
             // 2. Camera & RunnerCamera
             GameObject camGo = new GameObject("Main Camera");
             camGo.tag = "MainCamera";
             var cam = camGo.AddComponent<UnityEngine.Camera>();
-            Color skyFogColor = new Color(0.19f, 0.30f, 0.47f, 1.0f);
+            Color skyFogColor = new Color(0.48f, 0.76f, 0.98f, 1.0f);
             cam.clearFlags = CameraClearFlags.SolidColor;
             cam.backgroundColor = skyFogColor;
+            cam.fieldOfView = 60f;
             camGo.AddComponent<AudioListener>();
             var runnerCam = camGo.AddComponent<RunnerCamera>();
 
@@ -439,8 +480,8 @@ namespace GateRunner.Editor
             RenderSettings.fog = true;
             RenderSettings.fogMode = FogMode.Linear;
             RenderSettings.fogColor = skyFogColor;
-            RenderSettings.fogStartDistance = 25.0f;
-            RenderSettings.fogEndDistance = 85.0f;
+            RenderSettings.fogStartDistance = 30.0f;
+            RenderSettings.fogEndDistance = 95.0f;
 
             // 3. Player
             GameObject playerGo = GameObject.CreatePrimitive(PrimitiveType.Capsule);
@@ -527,34 +568,60 @@ namespace GateRunner.Editor
             GameObject readyTextGo = new GameObject("Text_TapToStart");
             readyTextGo.transform.SetParent(readyPanelGo.transform, false);
             var readyTextRect = readyTextGo.AddComponent<RectTransform>();
-            readyTextRect.anchorMin = new Vector2(0.5f, 0.35f);
-            readyTextRect.anchorMax = new Vector2(0.5f, 0.35f);
+            readyTextRect.anchorMin = new Vector2(0.5f, 0.22f);
+            readyTextRect.anchorMax = new Vector2(0.5f, 0.22f);
             readyTextRect.pivot = new Vector2(0.5f, 0.5f);
-            readyTextRect.sizeDelta = new Vector2(800f, 150f);
+            readyTextRect.sizeDelta = new Vector2(900f, 160f);
 
             var tmpReady = readyTextGo.AddComponent<TextMeshProUGUI>();
-            tmpReady.text = "TAP TO START";
-            tmpReady.fontSize = 58;
+            tmpReady.text = "TAP TO START!";
+            tmpReady.fontSize = 72;
             tmpReady.fontStyle = FontStyles.Bold;
             tmpReady.alignment = TextAlignmentOptions.Center;
-            tmpReady.color = new Color(1f, 0.95f, 0.3f);
+            tmpReady.color = new Color(1.0f, 0.84f, 0.12f);
 
-            // Level Text (TMP)
+            // Level Text (TMP - Top Center)
             GameObject levelTextGo = new GameObject("Text_Level");
             levelTextGo.transform.SetParent(canvasGo.transform, false);
             var levelRect = levelTextGo.AddComponent<RectTransform>();
             levelRect.anchorMin = new Vector2(0.5f, 1.0f);
             levelRect.anchorMax = new Vector2(0.5f, 1.0f);
             levelRect.pivot = new Vector2(0.5f, 1.0f);
-            levelRect.anchoredPosition = new Vector2(0f, -40f);
-            levelRect.sizeDelta = new Vector2(400f, 70f);
+            levelRect.anchoredPosition = new Vector2(0f, -95f);
+            levelRect.sizeDelta = new Vector2(500f, 80f);
 
             var tmpLevel = levelTextGo.AddComponent<TextMeshProUGUI>();
             tmpLevel.text = "LEVEL 1";
-            tmpLevel.fontSize = 44;
+            tmpLevel.fontSize = 56;
             tmpLevel.fontStyle = FontStyles.Bold;
             tmpLevel.alignment = TextAlignmentOptions.Center;
             tmpLevel.color = Color.white;
+
+            // Altın Sayacı (Top-Right Pill Container)
+            GameObject coinPillGo = new GameObject("Panel_CoinPill");
+            coinPillGo.transform.SetParent(canvasGo.transform, false);
+            var pillRect = coinPillGo.AddComponent<RectTransform>();
+            pillRect.anchorMin = new Vector2(1f, 1f);
+            pillRect.anchorMax = new Vector2(1f, 1f);
+            pillRect.pivot = new Vector2(1f, 1f);
+            pillRect.anchoredPosition = new Vector2(-55f, -95f);
+            pillRect.sizeDelta = new Vector2(185f, 68f);
+            var pillImg = coinPillGo.AddComponent<Image>();
+            pillImg.color = new Color(1f, 1f, 1f, 0.95f);
+
+            GameObject coinTextGo = new GameObject("Text_Coin");
+            coinTextGo.transform.SetParent(coinPillGo.transform, false);
+            var coinTextRect = coinTextGo.AddComponent<RectTransform>();
+            coinTextRect.anchorMin = Vector2.zero;
+            coinTextRect.anchorMax = Vector2.one;
+            coinTextRect.sizeDelta = Vector2.zero;
+
+            var tmpCoin = coinTextGo.AddComponent<TextMeshProUGUI>();
+            tmpCoin.text = "🪙 0";
+            tmpCoin.fontSize = 36;
+            tmpCoin.fontStyle = FontStyles.Bold;
+            tmpCoin.alignment = TextAlignmentOptions.Center;
+            tmpCoin.color = new Color(0.18f, 0.18f, 0.18f);
 
             // Score Banner Panel
             GameObject scorePanelGo = new GameObject("Panel_Score");
@@ -563,8 +630,8 @@ namespace GateRunner.Editor
             panelRect.anchorMin = new Vector2(0.5f, 1.0f);
             panelRect.anchorMax = new Vector2(0.5f, 1.0f);
             panelRect.pivot = new Vector2(0.5f, 1.0f);
-            panelRect.anchoredPosition = new Vector2(0f, -110f);
-            panelRect.sizeDelta = new Vector2(500f, 100f);
+            panelRect.anchoredPosition = new Vector2(0f, -175f);
+            panelRect.sizeDelta = new Vector2(500f, 90f);
 
             var scoreTextGo = new GameObject("Text_Score");
             scoreTextGo.transform.SetParent(scorePanelGo.transform, false);
@@ -579,19 +646,6 @@ namespace GateRunner.Editor
             tmpScore.fontStyle = FontStyles.Bold;
             tmpScore.alignment = TextAlignmentOptions.Center;
             tmpScore.color = new Color(1f, 0.95f, 0.35f);
-
-            // Altın Sayacı (TMP)
-            GameObject coinTextGo = new GameObject("Text_Coin");
-            coinTextGo.transform.SetParent(canvasGo.transform, false);
-            var coinTextRect = coinTextGo.AddComponent<RectTransform>();
-            coinTextRect.anchorMin = new Vector2(1f, 1f);
-            coinTextRect.anchorMax = new Vector2(1f, 1f);
-            coinTextRect.pivot = new Vector2(1f, 1f);
-            coinTextRect.anchoredPosition = new Vector2(-40f, -60f);
-            coinTextRect.sizeDelta = new Vector2(240f, 90f);
-
-            var tmpCoin = coinTextGo.AddComponent<TextMeshProUGUI>();
-            tmpCoin.text = "🪙 0";
             tmpCoin.fontSize = 44;
             tmpCoin.fontStyle = FontStyles.Bold;
             tmpCoin.alignment = TextAlignmentOptions.Right;

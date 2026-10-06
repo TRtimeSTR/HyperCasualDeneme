@@ -23,9 +23,9 @@ namespace GateRunner.Gates
         [SerializeField] private Renderer _gateRenderer;
 
         [FoldoutGroup("Renk Teması")]
-        [SerializeField] private Color _buffColor = new Color(0.12f, 0.65f, 1.0f, 0.85f); // Canlı Mavi / Yeşil
+        [SerializeField] private Color _buffColor = new Color(0.12f, 0.72f, 1.0f, 0.48f); // Canlı Mavi/Cam (Translucent Cyan-Blue)
         [FoldoutGroup("Renk Teması")]
-        [SerializeField] private Color _debuffColor = new Color(1.0f, 0.25f, 0.25f, 0.85f); // Kırmızı
+        [SerializeField] private Color _debuffColor = new Color(1.0f, 0.22f, 0.26f, 0.50f); // Canlı Kırmızı/Cam (Translucent Coral-Red)
 
         [FoldoutGroup("Tetikleyici Ayarları")]
         [SerializeField] private Collider _triggerCollider;

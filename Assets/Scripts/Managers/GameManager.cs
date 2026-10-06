@@ -150,34 +150,59 @@ namespace GateRunner.Managers
             var readyTxtGo = new GameObject("Text_TapToStart");
             readyTxtGo.transform.SetParent(_readyPanel.transform, false);
             var rTxtRect = readyTxtGo.AddComponent<RectTransform>();
-            rTxtRect.anchorMin = new Vector2(0.5f, 0.35f);
-            rTxtRect.anchorMax = new Vector2(0.5f, 0.35f);
+            rTxtRect.anchorMin = new Vector2(0.5f, 0.22f);
+            rTxtRect.anchorMax = new Vector2(0.5f, 0.22f);
             rTxtRect.pivot = new Vector2(0.5f, 0.5f);
-            rTxtRect.sizeDelta = new Vector2(800f, 150f);
+            rTxtRect.sizeDelta = new Vector2(900f, 160f);
             var tmpR = readyTxtGo.AddComponent<TextMeshProUGUI>();
-            tmpR.text = "TAP TO START";
-            tmpR.fontSize = 58;
+            tmpR.text = "TAP TO START!";
+            tmpR.fontSize = 72;
             tmpR.fontStyle = FontStyles.Bold;
             tmpR.alignment = TextAlignmentOptions.Center;
-            tmpR.color = new Color(1f, 0.95f, 0.3f);
+            tmpR.color = new Color(1.0f, 0.84f, 0.12f);
             _tapToStartText = tmpR;
 
-            // Level Text
+            // Level Text (Top-Center)
             var lvlGo = new GameObject("Text_Level");
             lvlGo.transform.SetParent(canvasGo.transform, false);
             var lvlRect = lvlGo.AddComponent<RectTransform>();
             lvlRect.anchorMin = new Vector2(0.5f, 1f);
             lvlRect.anchorMax = new Vector2(0.5f, 1f);
             lvlRect.pivot = new Vector2(0.5f, 1f);
-            lvlRect.anchoredPosition = new Vector2(0f, -50f);
-            lvlRect.sizeDelta = new Vector2(400f, 70f);
+            lvlRect.anchoredPosition = new Vector2(0f, -95f);
+            lvlRect.sizeDelta = new Vector2(500f, 80f);
             var tmpL = lvlGo.AddComponent<TextMeshProUGUI>();
             tmpL.text = $"LEVEL {_currentLevel}";
-            tmpL.fontSize = 44;
+            tmpL.fontSize = 56;
             tmpL.fontStyle = FontStyles.Bold;
             tmpL.alignment = TextAlignmentOptions.Center;
             tmpL.color = Color.white;
             _levelText = tmpL;
+
+            // Coin Pill Badge (Top-Right)
+            var coinPillGo = new GameObject("Panel_CoinPill");
+            coinPillGo.transform.SetParent(canvasGo.transform, false);
+            var pillRect = coinPillGo.AddComponent<RectTransform>();
+            pillRect.anchorMin = new Vector2(1f, 1f);
+            pillRect.anchorMax = new Vector2(1f, 1f);
+            pillRect.pivot = new Vector2(1f, 1f);
+            pillRect.anchoredPosition = new Vector2(-55f, -95f);
+            pillRect.sizeDelta = new Vector2(185f, 68f);
+            var pillImg = coinPillGo.AddComponent<Image>();
+            pillImg.color = new Color(1f, 1f, 1f, 0.95f);
+
+            var coinTxtGo = new GameObject("Text_Coin");
+            coinTxtGo.transform.SetParent(coinPillGo.transform, false);
+            var coinTxtRect = coinTxtGo.AddComponent<RectTransform>();
+            coinTxtRect.anchorMin = Vector2.zero;
+            coinTxtRect.anchorMax = Vector2.one;
+            coinTxtRect.sizeDelta = Vector2.zero;
+            var tmpCoin = coinTxtGo.AddComponent<TextMeshProUGUI>();
+            tmpCoin.text = "🪙 0";
+            tmpCoin.fontSize = 36;
+            tmpCoin.fontStyle = FontStyles.Bold;
+            tmpCoin.alignment = TextAlignmentOptions.Center;
+            tmpCoin.color = new Color(0.18f, 0.18f, 0.18f);
 
             // Victory Panel
             _victoryPanel = CreateSimpleResultPanel(canvasGo.transform, "Panel_Victory", "BÖLÜM TAMAMLANDI!", "SONRAKİ BÖLÜM", new Color(0.1f, 0.75f, 0.3f, 0.95f), out _nextLevelButton);
